@@ -665,23 +665,94 @@ async function cards(){
 }
 
 let taxFilter="ALL";
+/* ---------- 대사(reconciliation) 매칭 ---------- */
+const normName = s => (s||"").replace(/\(주\)|주식회사|㈜|\s+/g,"").toLowerCase();
+function matchInvoicesForTx(tx, invoices){
+  const amt = tx.in || tx.out;
+  const dir = tx.in ? "SALES" : "PURCHASE"; // 입금→매출계산서, 출금→매입계산서
+  const txName = normName(tx.name);
+  const txDate = tx.date.slice(0,10);
+  return invoices.filter(inv=>inv.type===dir).map(inv=>{
+    const amtOk = Math.abs((inv.supply+inv.vat) - amt) < 1;
+    const invName = normName(inv.partner);
+    const nameOk = !!(txName && invName && (txName.includes(invName) || invName.includes(txName)));
+    const days = Math.abs((new Date(txDate) - new Date(inv.date))/86400000);
+    return { inv, amtOk, nameOk, days };
+  }).filter(m=>m.amtOk).sort((a,b)=> (b.nameOk-a.nameOk) || (a.days-b.days));
+}
+function matchTxForInvoice(inv, txs){
+  const dir = inv.type; // SALES→입금, PURCHASE→출금
+  const invName = normName(inv.partner);
+  return txs.filter(t=> dir==="SALES" ? t.in : t.out).map(t=>{
+    const amt = t.in || t.out;
+    const amtOk = Math.abs(amt - (inv.supply+inv.vat)) < 1;
+    const txName = normName(t.name);
+    const nameOk = !!(txName && invName && (txName.includes(invName) || invName.includes(txName)));
+    const days = Math.abs((new Date(t.date.slice(0,10)) - new Date(inv.date))/86400000);
+    return { t, amtOk, nameOk, days };
+  }).filter(m=>m.amtOk).sort((a,b)=> (b.nameOk-a.nameOk) || (a.days-b.days));
+}
+function reconResultHTML(kind, item, matches){
+  if (!matches.length){
+    return `<div class="foot-note" style="color:var(--critical)">⚠ 금액이 일치하는 ${kind==="tx"?"세금계산서":"입출금 내역"}를 현재 조회 기간 내에서 찾지 못했습니다. 기간을 넓혀보세요.</div>`;
+  }
+  const best = matches[0];
+  const rows = matches.slice(0,5).map(m=>{
+    if (kind==="tx") return [`${m.inv.partner} <span style="color:var(--text-muted)">${m.inv.date}</span>`, KRW(m.inv.supply+m.inv.vat)];
+    return [`${m.t.name} <span style="color:var(--text-muted)">${m.t.date.slice(0,10)}</span>`, KRW(m.t.in||m.t.out)];
+  });
+  const okBadge = best.nameOk
+    ? `<span class="pill" style="background:rgba(27,175,122,0.18);color:var(--good)">✓ 거래처·금액 일치</span>`
+    : `<span class="pill unclassified">금액은 일치·거래처명 확인 필요</span>`;
+  return `<div style="margin-top:8px">${okBadge}</div>${miniTable(rows)}`;
+}
+
+let taxReconSel = null; // {kind:"tx"|"inv", idx:number}
 async function tax(){
   el.innerHTML = loadingHTML();
   try {
-    const base = await fetchTaxInvoices(dateRange);
+    const [base, bankTx] = await Promise.all([fetchTaxInvoices(dateRange), fetchTransactions(dateRange)]);
     const list = base.filter(t=> taxFilter==="ALL" || t.type===taxFilter);
     const salesSum = sumBy(base.filter(t=>t.type==="SALES"), t=>t.supply+t.vat);
     const purchSum = sumBy(base.filter(t=>t.type==="PURCHASE"), t=>t.supply+t.vat);
+
+    const txRows = bankTx.map((t,i)=>`<tr class="link" data-recon="tx|${i}"><td>${t.date}</td><td>${t.name}<div class="acc-alias">${t.desc}</div></td><td class="num ${t.in?'in':''}">${t.in?KRW(t.in):"—"}</td><td class="num ${t.out?'out':''}">${t.out?"−"+KRW(t.out):"—"}</td></tr>`).join("");
+    const txPanelBody = bankTx.length
+      ? `<table><thead><tr><th>일시</th><th>거래처</th><th class="num">입금</th><th class="num">출금</th></tr></thead><tbody>${txRows}</tbody></table>`
+      : emptyBox("기간 내 입출금 내역이 없습니다.");
+
+    const invRows = list.map((t,i)=>`<tr class="link" data-recon="inv|${i}"><td>${t.date}</td><td>${t.partner}</td><td><span class="pill" style="${t.type==='SALES'?'background:rgba(27,175,122,0.18);color:var(--good)':''}">${t.type==='SALES'?'매출':'매입'}</span></td><td class="num">${KRW(t.supply+t.vat)}</td></tr>`).join("");
+    const invPanelBody = list.length
+      ? `<table><thead><tr><th>작성일</th><th>거래처</th><th>구분</th><th class="num">합계</th></tr></thead><tbody>${invRows}</tbody></table>`
+      : emptyBox("세금계산서가 없습니다.");
+
+    let reconHTML = `<p class="desc">왼쪽 입출금 또는 오른쪽 세금계산서 행을 클릭하면, 금액·거래처가 일치하는 반대편 항목을 찾아 발급/수취가 정확한지 확인합니다.</p>`;
+    if (taxReconSel){
+      const { kind, idx } = taxReconSel;
+      if (kind==="tx" && bankTx[idx]) reconHTML += reconResultHTML("tx", bankTx[idx], matchInvoicesForTx(bankTx[idx], base));
+      else if (kind==="inv" && list[idx]) reconHTML += reconResultHTML("inv", list[idx], matchTxForInvoice(list[idx], bankTx));
+    }
+
     el.innerHTML = `
       <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
         <div class="tile"><div class="label">매출 세금계산서</div><div class="value">${compact(salesSum)}</div><div class="delta up">${base.filter(t=>t.type==="SALES").length}건 발행</div></div>
         <div class="tile"><div class="label">매입 세금계산서</div><div class="value">${compact(purchSum)}</div><div class="delta down">${base.filter(t=>t.type==="PURCHASE").length}건 수취</div></div>
         <div class="tile"><div class="label">순액 (매출−매입)</div><div class="value">${compact(salesSum-purchSum)}</div></div>
       </div>
-      <div class="panel"><h2>세금계산서 목록</h2><p class="desc">거래처를 클릭하면 해당 거래처 상세가 모달로 열립니다.</p>${rangeNote()}${capNote(base)}
-        <div class="filters">${["ALL","SALES","PURCHASE"].map(f=>`<span class="chip ${taxFilter===f?'active':''}" data-txf2="${f}">${({ALL:"전체",SALES:"매출",PURCHASE:"매입"})[f]}</span>`).join("")}</div>
-        ${taxTableHTML(list)}</div>`;
+      <div class="panel"><h2>입출금 · 세금계산서 대사</h2>${rangeNote()}${reconHTML}</div>
+      <div class="grid-2">
+        <div class="panel"><h2>은행 입출금</h2>${capNote(bankTx)}${txPanelBody}</div>
+        <div class="panel"><h2>세금계산서 목록</h2>${capNote(base)}
+          <div class="filters">${["ALL","SALES","PURCHASE"].map(f=>`<span class="chip ${taxFilter===f?'active':''}" data-txf2="${f}">${({ALL:"전체",SALES:"매출",PURCHASE:"매입"})[f]}</span>`).join("")}</div>
+          ${invPanelBody}</div>
+      </div>`;
     document.querySelectorAll("[data-txf2]").forEach(c=>c.onclick=async ()=>{taxFilter=c.dataset.txf2; await tax();});
+    document.querySelectorAll("[data-recon]").forEach(row=>row.onclick=async ()=>{
+      const [kind, idxStr] = row.dataset.recon.split("|");
+      taxReconSel = { kind, idx: +idxStr };
+      await tax();
+      document.querySelector(".panel h2")?.scrollIntoView({behavior:"smooth", block:"nearest"});
+    });
   } catch (err) {
     el.innerHTML = errorHTML(err);
   }
