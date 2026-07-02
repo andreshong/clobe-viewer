@@ -2,7 +2,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { supabaseAdmin } from "../_shared/supabaseAdmin.ts";
 
 // Login bridge: authenticates a clobe user against the SHARED HR Supabase
-// project's hr_verify(name, pin) RPC (read-only, black-box -- HR data is
+// project's hr_login(name, pin) RPC (read-only, black-box -- HR data is
 // never modified), and on success mints a session for the corresponding
 // clobe account. This lets the 5 allowlisted people log into clobe with the
 // exact same name + password they use for the HR apps, without clobe storing
@@ -55,10 +55,14 @@ Deno.serve(async (req) => {
   const email = NAME_TO_EMAIL[name];
   if (!email) return json({ error: "invalid_login" }, 401);
 
-  // 1) Verify credentials against the shared HR project (read-only).
+  // 1) Verify credentials against the shared HR project (read-only), using the
+  //    SAME function the other 3 apps log in with: hr_login. It returns the
+  //    user's info (HTTP 200) on success and raises "unauthorized" (HTTP 400)
+  //    on failure. (hr_verify only checks the original phone PIN, so it wrongly
+  //    rejects anyone who has since changed their password -- that was the bug.)
   let verified = false;
   try {
-    const res = await fetch(`${HR_URL}/rest/v1/rpc/hr_verify`, {
+    const res = await fetch(`${HR_URL}/rest/v1/rpc/hr_login`, {
       method: "POST",
       headers: {
         "apikey": HR_ANON,
@@ -69,8 +73,9 @@ Deno.serve(async (req) => {
       signal: AbortSignal.timeout(15000),
     });
     if (res.ok) {
-      const val = await res.json();
-      verified = val === true;
+      const val = await res.json().catch(() => null);
+      // Success = 200 without an error verdict in the returned jsonb.
+      verified = !(val && typeof val === "object" && (val.ok === false || val.error));
     }
   } catch (_e) {
     return json({ error: "hr_unreachable" }, 502);
