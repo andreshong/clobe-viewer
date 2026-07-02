@@ -97,6 +97,9 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--gridline); }
   th { color: var(--text-muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
+  th.dsort { cursor: pointer; user-select: none; }
+  th.dsort:hover { color: var(--text-secondary); }
+  .sarrow { color: var(--series-1); }
   tbody tr:hover { background: var(--accent-soft); }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .out { color: var(--critical); } .in { color: var(--good); }
@@ -315,17 +318,17 @@ function txTableHTML(list){
       <td class="num ${t.in?'in':''}">${t.in?KRW(t.in):"—"}</td>
       <td class="num ${t.out?'out':''}">${t.out?"−"+KRW(t.out):"—"}</td></tr>`;
   }).join("");
-  return `<table><thead><tr><th>일시</th><th>거래처 / 적요</th><th>계정</th><th>거래유형</th><th>공정유형</th><th>비용유형</th><th>계좌</th><th class="num">입금</th><th class="num">출금</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table><thead><tr><th class="dsort">일시</th><th class="dsort">거래처 / 적요</th><th class="dsort">계정</th><th class="dsort">거래유형</th><th class="dsort">공정유형</th><th class="dsort">비용유형</th><th class="dsort">계좌</th><th class="num dsort">입금</th><th class="num dsort">출금</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function cardUsageTableHTML(list){
   if (!list.length) return emptyBox("선택한 조건의 카드 사용이 없습니다.");
   const rows = list.map(c=>`<tr><td>${c.date}</td><td>${c.merchant}</td><td>${cardCell(c.card)}</td><td>${catPill(c.cat)}</td><td class="num">${KRW(c.amount)}</td></tr>`).join("");
-  return `<table><thead><tr><th>일시</th><th>가맹점</th><th>카드 / 사용자</th><th>계정</th><th class="num">금액</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table><thead><tr><th class="dsort">일시</th><th class="dsort">가맹점</th><th class="dsort">카드 / 사용자</th><th class="dsort">계정</th><th class="num dsort">금액</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function cardBillTableHTML(list){
   if (!list.length) return emptyBox("선택한 기간에 청구된 카드 내역이 없습니다.");
   const rows = list.map(c=>`<tr><td>${c.payDate}</td><td>${c.merchant}</td><td>${cardCell(c.card)}</td><td>${catPill(c.cat)}</td><td class="num">${KRW(c.amount)}</td></tr>`).join("");
-  return `<table><thead><tr><th>결제일</th><th>청구 내용</th><th>카드 / 사용자</th><th>계정</th><th class="num">금액</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table><thead><tr><th class="dsort">결제일</th><th class="dsort">청구 내용</th><th class="dsort">카드 / 사용자</th><th class="dsort">계정</th><th class="num dsort">금액</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function taxTableHTML(list){
   if (!list.length) return emptyBox("세금계산서가 없습니다.");
@@ -334,7 +337,7 @@ function taxTableHTML(list){
     <td>${drill("party",t.partner,t.partner)}<div class="acc-alias">${t.regNo}</div></td>
     <td><span class="pill" style="${t.type==='SALES'?'background:rgba(27,175,122,0.18);color:var(--good)':''}">${t.type==='SALES'?'매출':'매입'}</span></td>
     <td class="num">${KRW(t.supply)}</td><td class="num">${KRW(t.vat)}</td><td class="num">${KRW(t.supply+t.vat)}</td></tr>`).join("");
-  return `<table><thead><tr><th>작성일</th><th>거래처</th><th>구분</th><th class="num">공급가액</th><th class="num">부가세</th><th class="num">합계</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table><thead><tr><th class="dsort">작성일</th><th class="dsort">거래처</th><th class="dsort">구분</th><th class="num dsort">공급가액</th><th class="num dsort">부가세</th><th class="num dsort">합계</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 /* ============================================================
@@ -400,6 +403,29 @@ async function openModal(type, key){
     document.getElementById("modal-x").onclick = closeModal;
   }
 }
+// 범용 표 정렬: th.dsort 클릭 시 해당 표의 tbody 행을 그 열 기준으로 재정렬(오름↔내림 토글).
+// num 열(class="num")은 숫자로, 그 외는 텍스트로 비교. 이미 받아온 DOM만 재배열하므로 재조회 없음.
+document.addEventListener("click", e => {
+  const th = e.target.closest("th.dsort");
+  if (!th) return;
+  const table = th.closest("table"); if (!table || !table.tHead || !table.tBodies[0]) return;
+  const ths = [...table.tHead.rows[0].cells];
+  const idx = ths.indexOf(th);
+  const isNum = th.classList.contains("num");
+  const dir = (table.dataset.sortIdx === String(idx) && table.dataset.sortDir === "1") ? -1 : 1;
+  table.dataset.sortIdx = idx; table.dataset.sortDir = dir;
+  const tb = table.tBodies[0];
+  const cellVal = tr => {
+    const c = tr.cells[idx]; if (!c) return isNum ? 0 : "";
+    const txt = (c.textContent || "").trim();
+    if (isNum){ const n = parseFloat(txt.replace(/[^0-9.\-]/g, "")); return isNaN(n) ? 0 : n; }
+    return txt;
+  };
+  [...tb.rows].sort((a,b)=>{ const x=cellVal(a), y=cellVal(b); return (isNum ? (x-y) : String(x).localeCompare(String(y),"ko")) * dir; })
+    .forEach(r=>tb.appendChild(r));
+  ths.forEach(h=>{ const s=h.querySelector(".sarrow"); if(s) s.remove(); });
+  const ar = document.createElement("span"); ar.className="sarrow"; ar.textContent = dir>0?" ▲":" ▼"; th.appendChild(ar);
+});
 function closeModal(){ modalEl.classList.remove("open"); modalEl.innerHTML=""; }
 modalEl.onclick = e => { if (e.target===modalEl) closeModal(); };
 document.addEventListener("keydown", e => { if (e.key==="Escape") closeModal(); });
@@ -655,7 +681,7 @@ async function account(){
         ${txTableHTML(filtered)}</div>
       <div class="panel"><h2>계좌별 잔액</h2><p class="desc">${isSnapshot?'최신 수집 시점 기준':`<b>${end}</b> 기준 추정(이후 거래 롤백)`} · 계좌 클릭 시 상세</p>
         <div class="bars" style="margin-bottom:18px">${balBars||emptyBox()}</div>
-        <table><thead><tr><th>은행</th><th>계좌</th><th>구분</th><th class="num">외화잔액</th><th class="num">잔액(KRW)</th></tr></thead><tbody>${balRows}</tbody></table>
+        <table><thead><tr><th class="dsort">은행</th><th class="dsort">계좌</th><th class="dsort">구분</th><th class="num dsort">외화잔액</th><th class="num dsort">잔액(KRW)</th></tr></thead><tbody>${balRows}</tbody></table>
         <div class="foot-note">⚠️ 대출 ${compact(loanSum)}은 부채이며 자산 합계에서 제외됩니다.</div></div>`;
     document.querySelectorAll("[data-txacc]").forEach(c=>c.onclick=async ()=>{txAccFilter=c.dataset.txacc; await account();});
     document.querySelectorAll("[data-txf]").forEach(c=>c.onclick=async ()=>{txFilter=c.dataset.txf; await account();});
@@ -793,12 +819,12 @@ async function tax(){
 
     const txRows = bankTx.map((t,i)=>`<tr class="link" data-recon="tx|${i}"><td>${t.date}</td><td>${t.name}<div class="acc-alias">${t.desc}</div></td><td class="num ${t.in?'in':''}">${t.in?KRW(t.in):"—"}</td><td class="num ${t.out?'out':''}">${t.out?"−"+KRW(t.out):"—"}</td></tr>`).join("");
     const txPanelBody = bankTx.length
-      ? `<table><thead><tr><th>일시</th><th>거래처</th><th class="num">입금</th><th class="num">출금</th></tr></thead><tbody>${txRows}</tbody></table>`
+      ? `<table><thead><tr><th class="dsort">일시</th><th class="dsort">거래처</th><th class="num dsort">입금</th><th class="num dsort">출금</th></tr></thead><tbody>${txRows}</tbody></table>`
       : emptyBox("기간 내 입출금 내역이 없습니다.");
 
     const invRows = list.map((t,i)=>`<tr class="link" data-recon="inv|${i}"><td>${t.date}</td><td>${t.partner}</td><td><span class="pill" style="${t.type==='SALES'?'background:rgba(27,175,122,0.18);color:var(--good)':''}">${t.type==='SALES'?'매출':'매입'}</span></td><td class="num">${KRW(t.supply+t.vat)}</td></tr>`).join("");
     const invPanelBody = list.length
-      ? `<table><thead><tr><th>작성일</th><th>거래처</th><th>구분</th><th class="num">합계</th></tr></thead><tbody>${invRows}</tbody></table>`
+      ? `<table><thead><tr><th class="dsort">작성일</th><th class="dsort">거래처</th><th class="dsort">구분</th><th class="num dsort">합계</th></tr></thead><tbody>${invRows}</tbody></table>`
       : emptyBox("세금계산서가 없습니다.");
 
     el.innerHTML = `
