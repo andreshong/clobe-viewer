@@ -961,7 +961,7 @@ async function showApp(session){
   document.querySelector(".app").style.display = "";
   document.getElementById("login-screen").style.display = "none";
   const emailEl = document.getElementById("current-user-email");
-  if (emailEl) emailEl.textContent = session?.user?.email || "";
+  if (emailEl) emailEl.textContent = session?.user?.user_metadata?.clobe_name || session?.user?.email || "";
   try {
     await loadConfigCache();
     const syncedAt = await loadSyncState();
