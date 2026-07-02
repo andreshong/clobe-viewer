@@ -46,7 +46,10 @@ Deno.serve(async (req) => {
   let name = "", password = "";
   try {
     const b = await req.json();
-    name = (b.name ?? "").trim();
+    // NFC-normalize the Korean name so it byte-matches the DB (the HR apps feed
+    // names from a roster dropdown; a typed name can arrive in a different
+    // Unicode form and then fail hr_login's exact name lookup).
+    name = (b.name ?? "").normalize("NFC").trim();
     password = b.password ?? "";
   } catch {
     return json({ error: "bad_request" }, 400);
