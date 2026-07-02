@@ -127,10 +127,15 @@ async function fetchTaxInvoices(range){
 // clobe의 get_monthly_revenue(카드/마켓플레이스/배달/PG 정산매출)는 이 회사(B2B
 // 제조업, 세금계산서 기반 거래)에는 해당 데이터가 없어 항상 0건 — 대신 매출
 // 세금계산서(SALES) 공급가액을 월별로 집계해 "매출" 지표로 사용.
-async function fetchMonthlyRevenue(){
-  const start = new Date(); start.setMonth(start.getMonth()-5); start.setDate(1);
+// range로 스코프하되, 차트 가독성을 위해 range.end 기준 최대 12개월까지만 표시.
+async function fetchMonthlyRevenue(range){
+  const end = new Date(`${range.end}T00:00:00`);
+  let start = new Date(`${range.start}T00:00:00`);
+  const minStart = new Date(end.getFullYear(), end.getMonth()-11, 1);
+  if (start < minStart) start = minStart;
+  const startStr = fmtDate(new Date(start.getFullYear(), start.getMonth(), 1));
   const { data, error } = await supabaseClient.from("tax_invoices").select("issue_date, supply_value")
-    .eq("type","SALES").gte("issue_date", fmtDate(start));
+    .eq("type","SALES").gte("issue_date", startStr).lte("issue_date", range.end);
   if (error) throw error;
   const byMonth = {};
   for (const r of (data||[])) {

@@ -79,11 +79,8 @@
   .search { flex: 1; min-width: 160px; }
   .search input { width: 100%; font-family: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-primary); }
 
-  .map-list { display: flex; flex-direction: column; gap: 10px; }
-  .map-row { display: grid; grid-template-columns: 140px 1fr auto; align-items: center; gap: 12px; max-width: 600px; }
-  .holder-input, .alias-input, .pa { font-family: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-primary); }
-  .holder-input:focus, .alias-input:focus, .pa:focus { outline: none; border-color: var(--series-1); box-shadow: 0 0 0 2px var(--accent-soft); }
-  .map-row .stat { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pa { font-family: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-primary); }
+  .pa:focus { outline: none; border-color: var(--series-1); box-shadow: 0 0 0 2px var(--accent-soft); }
   .party-row { display: grid; grid-template-columns: 170px repeat(3, 1fr); gap: 10px; align-items: center; margin-bottom: 8px; }
   .party-row .pname { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pa { font-size: 12.5px; padding: 6px 10px; }
@@ -388,26 +385,76 @@ async function refresh(){ renderDateControl(); await updateBadges(); await VIEWS
 /* ============================================================
    MAPPING PANELS (매칭 입력)
    ============================================================ */
-function holderPanel(cardsList, usageInRange){
-  const rows = cardsList.map(card=>{
-    const useSum = sumBy(usageInRange.filter(c=>c.card===card), c=>c.amount);
-    return `<div class="map-row"><span class="pill">${card}</span>
-      <input class="holder-input" data-card="${card}" value="${holderOf(card)}" placeholder="사용자 이름 입력">
-      <span class="stat">기간 이용 ${KRW(useSum)}</span></div>`;
-  }).join("");
-  return `<div class="panel"><h2>카드 사용자 매칭</h2><p class="desc">카드 번호에 사용자(소유자) 이름을 입력하면 모든 조회에 함께 표시·필터됩니다. 자동 저장.</p><div class="map-list">${rows}</div></div>`;
+/* 카드 사용자 매칭 / 계좌 별명 매칭 — 거래처 등록과 동일한 정렬 가능 테이블 패턴 */
+let holderSort={key:"card",dir:1}, aliasSort={key:"num",dir:1};
+
+function holderRows(cardsList, usageInRange){
+  const rows = cardsList.map(card=>({ card, holder: holderOf(card), used: sumBy(usageInRange.filter(c=>c.card===card), c=>c.amount) }));
+  const {key,dir} = holderSort;
+  rows.sort((x,y)=>{ const xv=x[key], yv=y[key]; return typeof xv==="number" ? (xv-yv)*dir : String(xv).localeCompare(String(yv),"ko")*dir; });
+  return rows;
 }
-function aliasPanel(allAccounts){
+function holderTable(cardsList, usageInRange){
+  const cols = [["card","카드번호"],["holder","사용자"],["used","기간 이용액"]];
+  const head = cols.map(([k,l])=>`<th class="sortable" data-sort="${k}">${l}${holderSort.key===k?(holderSort.dir>0?" ▲":" ▼"):""}</th>`).join("");
+  const rows = holderRows(cardsList, usageInRange);
+  const body = rows.map(r=>`<tr><td class="pname-cell">${r.card}</td><td><input class="pa" data-hcard="${r.card}" value="${r.holder}" placeholder="사용자 이름 입력"></td><td class="num">${KRW(r.used)}</td></tr>`).join("");
+  return `<table class="party-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+function holderPanel(cardsList, usageInRange){
+  return `<div class="panel"><h2>카드 사용자 매칭</h2><p class="desc">카드 번호에 사용자(소유자) 이름을 입력하면 모든 조회에 함께 표시·필터됩니다. 헤더를 클릭해 정렬할 수 있습니다. 자동 저장.</p>
+    <div id="holder-wrap">${holderTable(cardsList, usageInRange)}</div></div>`;
+}
+function wireHolder(cardsList, usageInRange){
+  const wrap = document.getElementById("holder-wrap");
+  if (!wrap) return;
+  const bind = () => {
+    wrap.querySelectorAll("[data-sort]").forEach(h=>h.onclick=()=>{ const k=h.dataset.sort; if(holderSort.key===k) holderSort.dir*=-1; else holderSort={key:k,dir:1}; rerender(); });
+    wrap.querySelectorAll("[data-hcard]").forEach(inp=>{
+      inp.oninput=()=>{ cardHolders[inp.dataset.hcard]=inp.value.trim(); };
+      inp.onchange=async ()=>{ await saveHolder(inp.dataset.hcard, inp.value.trim()); rerender(); };
+    });
+  };
+  const rerender = () => { wrap.innerHTML=holderTable(cardsList, usageInRange); bind(); };
+  bind();
+}
+
+function aliasRows(allAccounts){
   const nums = [...new Set(allAccounts.map(a=>a.num))];
   const rows = nums.map(num=>{
     const acc = allAccounts.find(a=>a.num===num);
     const bal = sumBy(allAccounts.filter(a=>a.num===num), a=>a.krw);
-    return `<div class="map-row"><span class="pill">${num}</span>
-      <input class="alias-input" data-num="${num}" value="${acctAlias[num]||''}" placeholder="계좌 별명 입력 (예: 메인 운영계좌)">
-      <span class="stat">${acc.bank} · ${compact(bal)}</span></div>`;
-  }).join("");
-  return `<div class="panel"><h2>계좌 별명 매칭</h2><p class="desc">계좌번호에 별명을 입력하면 모든 조회·모달에 함께 표시됩니다. 자동 저장.</p><div class="map-list">${rows}</div></div>`;
+    return { num, bank: acc.bank, bal, alias: acctAlias[num]||"" };
+  });
+  const {key,dir} = aliasSort;
+  rows.sort((x,y)=>{ const xv=x[key], yv=y[key]; return typeof xv==="number" ? (xv-yv)*dir : String(xv).localeCompare(String(yv),"ko")*dir; });
+  return rows;
 }
+function aliasTable(allAccounts){
+  const cols = [["num","계좌번호"],["bank","은행"],["bal","잔액"],["alias","별명"]];
+  const head = cols.map(([k,l])=>`<th class="sortable" data-sort="${k}">${l}${aliasSort.key===k?(aliasSort.dir>0?" ▲":" ▼"):""}</th>`).join("");
+  const rows = aliasRows(allAccounts);
+  const body = rows.map(r=>`<tr><td class="pname-cell">${r.num}</td><td class="acc-alias">${r.bank}</td><td class="num">${compact(r.bal)}</td><td><input class="pa" data-anum="${r.num}" value="${r.alias}" placeholder="계좌 별명 입력"></td></tr>`).join("");
+  return `<table class="party-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+function aliasPanel(allAccounts){
+  return `<div class="panel"><h2>계좌 별명 매칭</h2><p class="desc">계좌번호에 별명을 입력하면 모든 조회·모달에 함께 표시됩니다. 헤더를 클릭해 정렬할 수 있습니다. 자동 저장.</p>
+    <div id="alias-wrap">${aliasTable(allAccounts)}</div></div>`;
+}
+function wireAlias(allAccounts){
+  const wrap = document.getElementById("alias-wrap");
+  if (!wrap) return;
+  const bind = () => {
+    wrap.querySelectorAll("[data-sort]").forEach(h=>h.onclick=()=>{ const k=h.dataset.sort; if(aliasSort.key===k) aliasSort.dir*=-1; else aliasSort={key:k,dir:1}; rerender(); });
+    wrap.querySelectorAll("[data-anum]").forEach(inp=>{
+      inp.oninput=()=>{ acctAlias[inp.dataset.anum]=inp.value.trim(); };
+      inp.onchange=async ()=>{ await saveAlias(inp.dataset.anum, inp.value.trim()); rerender(); };
+    });
+  };
+  const rerender = () => { wrap.innerHTML=aliasTable(allAccounts); bind(); };
+  bind();
+}
+
 let partySearch="", partySort={key:"name",dir:1}, ALL_PARTIES=[];
 const PARTY_COLS = [{k:"name",l:"거래처"},{k:"regno",l:"사업자등록번호"},{k:"ceo",l:"대표자"},{k:"addr",l:"주소"},{k:"type",l:"거래유형"},{k:"process",l:"공정"},{k:"cost",l:"비용유형"}];
 function partyRowsFiltered(){
@@ -449,17 +496,6 @@ function wireParty(){
   const s = document.getElementById("party-search");
   if (s) s.oninput = e => { partySearch=e.target.value; rerender(); }; // 검색창은 wrap 밖이라 포커스 유지됨
 }
-function wireMappingInputs(){
-  document.querySelectorAll(".holder-input").forEach(inp=>{
-    inp.oninput=()=>{ cardHolders[inp.dataset.card]=inp.value.trim(); };
-    inp.onchange=async ()=>{ await saveHolder(inp.dataset.card, inp.value.trim()); await VIEWS[currentView].fn(); };
-  });
-  document.querySelectorAll(".alias-input").forEach(inp=>{
-    inp.oninput=()=>{ acctAlias[inp.dataset.num]=inp.value.trim(); };
-    inp.onchange=async ()=>{ await saveAlias(inp.dataset.num, inp.value.trim()); await VIEWS[currentView].fn(); };
-  });
-}
-
 /* ============================================================
    VIEWS
    ============================================================ */
@@ -468,17 +504,13 @@ const el = document.getElementById("content");
 async function overview(){
   el.innerHTML = loadingHTML();
   try {
-    const yesterday = new Date(TODAY); yesterday.setDate(yesterday.getDate()-1);
-    const yStr = fmt(yesterday);
-    const [accounts, loans, monthlyRevenue, yestTx] = await Promise.all([
-      fetchAccounts(), fetchLoans(), fetchMonthlyRevenue(), fetchTransactions({start:yStr,end:yStr}),
+    const [accounts, loans, monthlyRevenue, rangeTx] = await Promise.all([
+      fetchAccounts(), fetchLoans(), fetchMonthlyRevenue(dateRange), fetchTransactions(dateRange),
     ]);
     const availableCash = sumBy(accounts, a=>a.krw);
-    const yesterdayOut = sumBy(yestTx, t=>t.out);
-    const outCnt = yestTx.filter(t=>t.out).length, inCnt = yestTx.filter(t=>t.in).length;
-    const lastMonth = monthlyRevenue[monthlyRevenue.length-1];
-    const prevMonth = monthlyRevenue[monthlyRevenue.length-2];
-    const momPct = (lastMonth && prevMonth && prevMonth.net) ? ((lastMonth.net-prevMonth.net)/prevMonth.net*100) : null;
+    const outSum = sumBy(rangeTx, t=>t.out), inSum = sumBy(rangeTx, t=>t.in);
+    const outCnt = rangeTx.filter(t=>t.out).length, inCnt = rangeTx.filter(t=>t.in).length;
+    const rangeRevenue = sumBy(monthlyRevenue, r=>r.net);
     const maxRev = Math.max(1, ...monthlyRevenue.map(r=>r.net));
     const curMonthStr = fmt(TODAY).slice(0,7);
     const cols = monthlyRevenue.map(r=>{
@@ -488,18 +520,19 @@ async function overview(){
     const topAcc = [...accounts].sort((a,b)=>b.krw-a.krw).slice(0,6);
     const maxAcc = Math.max(1, ...topAcc.map(a=>a.krw));
     const bars = topAcc.map(a=>`<div class="bar-row"><div class="bname">${drill("acct",a.num,aliasOf(a.num)||a.name)} <span class="acc-alias">${a.bank}</span></div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(2,a.krw/maxAcc*100)}%"></div></div><div class="bar-val">${compact(a.krw)}</div></div>`).join("");
+    const recentTx = rangeTx.slice(0,10);
     el.innerHTML = `
       <div class="kpis">
         <div class="tile"><div class="label">총 가용 잔액</div><div class="value">${compact(availableCash)}</div><div class="delta flat">예금·펀드·외화 합계 (대출 제외)</div></div>
-        <div class="tile"><div class="label">어제 출금 (${yStr.slice(5)})</div><div class="value">${compact(yesterdayOut)}</div><div class="delta ${outCnt?'down':'flat'}">${outCnt?`▼ ${outCnt}건`:'거래 없음'} · 입금 ${inCnt}건</div></div>
-        <div class="tile"><div class="label">${lastMonth?lastMonth.month.slice(5)+'월 매출 (net)':'매출'}</div><div class="value">${lastMonth?compact(lastMonth.net):'—'}</div><div class="delta ${momPct==null?'flat':(momPct>=0?'up':'down')}">${momPct==null?'전월 데이터 없음':`${momPct>=0?'▲':'▼'} 전월 대비 ${Math.abs(momPct).toFixed(1)}%`}</div></div>
+        <div class="tile"><div class="label">기간 출금</div><div class="value">${compact(outSum)}</div><div class="delta ${outCnt?'down':'flat'}">${outCnt?`▼ ${outCnt}건`:'거래 없음'} · 입금 ${inCnt}건</div></div>
+        <div class="tile"><div class="label">기간 매출</div><div class="value">${compact(rangeRevenue)}</div><div class="delta flat">매출 세금계산서 공급가액 기준</div></div>
         <div class="tile"><div class="label">총 대출 (부채)</div><div class="value" style="color:var(--critical)">${compact(sumBy(loans,l=>l.krw))}</div><div class="delta flat">${loans.length}건</div></div>
       </div>
       <div class="grid-2">
-        <div class="panel"><h2>월별 매출 추이 (net)</h2><p class="desc">최근 6개월 · 매출 세금계산서 기준 · 이번 달은 진행 중</p><div class="cols">${cols||emptyBox("매출 데이터가 없습니다")}</div></div>
+        <div class="panel"><h2>월별 매출 추이 (net)</h2><p class="desc">선택한 기간(최대 12개월) · 매출 세금계산서 기준</p><div class="cols">${cols||emptyBox("매출 데이터가 없습니다")}</div></div>
         <div class="panel"><h2>상위 계좌 잔액</h2><p class="desc">원화 환산 기준 상위 6개 계좌 · 클릭 시 거래 상세</p><div class="bars">${bars||emptyBox()}</div></div>
       </div>
-      <div class="panel"><h2>어제 주요 입출금 (${yStr})</h2><p class="desc">거래처·계좌를 클릭하면 해당 내역만 모달로 열립니다.</p>${txTableHTML(yestTx)}</div>`;
+      <div class="panel"><h2>기간 내 주요 입출금</h2><p class="desc">최근 10건 · 거래처·계좌를 클릭하면 해당 내역만 모달로 열립니다.</p>${rangeNote()}${txTableHTML(recentTx)}</div>`;
   } catch (err) {
     el.innerHTML = errorHTML(err);
   }
@@ -544,7 +577,10 @@ async function account(){
       return dirOk && searchOk;
     });
     const accTabs = `<div class="filters" style="margin-bottom:14px"><span class="chip ${txAccFilter==='ALL'?'active':''}" data-txacc="ALL">전체 계좌</span>`+accNums.map(n=>`<span class="chip ${txAccFilter===n?'active':''}" data-txacc="${n}">${aliasOf(n)||n}</span>`).join("")+`</div>`;
-    const balRows = [...rowsData].sort((x,y)=>y.krw-x.krw).map(({a,krw})=>{
+    const balSorted = [...rowsData].sort((x,y)=>y.krw-x.krw);
+    const maxBal = Math.max(1, ...balSorted.map(r=>r.krw));
+    const balBars = balSorted.map(({a,krw})=>`<div class="bar-row"><div class="bname">${drill("acct",a.num,aliasOf(a.num)||a.name)} <span class="acc-alias">${a.bank}</span></div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(2,krw/maxBal*100)}%"></div></div><div class="bar-val">${compact(krw)}</div></div>`).join("");
+    const balRows = balSorted.map(({a,krw})=>{
       const changed = Math.round(krw)!==Math.round(a.krw);
       return `<tr><td>${a.bank}</td><td>${drill("acct",a.num,a.num)}<div class="acc-alias">${aliasOf(a.num)||a.name}</div></td>
         <td><span class="pill">${({CHECKING:"입출금",FUND:"펀드",FX:"외화"})[a.type]||a.type}</span></td>
@@ -573,6 +609,7 @@ async function account(){
         </div>
         ${txTableHTML(filtered)}</div>
       <div class="panel"><h2>계좌별 잔액</h2><p class="desc">${isSnapshot?'최신 수집 시점 기준':`<b>${end}</b> 기준 추정(이후 거래 롤백)`} · 계좌 클릭 시 상세</p>
+        <div class="bars" style="margin-bottom:18px">${balBars||emptyBox()}</div>
         <table><thead><tr><th>은행</th><th>계좌</th><th>구분</th><th class="num">외화잔액</th><th class="num">잔액(KRW)</th></tr></thead><tbody>${balRows}</tbody></table>
         <div class="foot-note">⚠️ 대출 ${compact(loanSum)}은 부채이며 자산 합계에서 제외됩니다.</div></div>`;
     document.querySelectorAll("[data-txacc]").forEach(c=>c.onclick=async ()=>{txAccFilter=c.dataset.txacc; await account();});
@@ -662,7 +699,8 @@ async function manage(){
       ${aliasPanel(accounts)}
       ${holderPanel(cardsList, usageInRange)}
       ${partyPanel()}`;
-    wireMappingInputs();
+    wireAlias(accounts);
+    wireHolder(cardsList, usageInRange);
     wireParty();
   } catch (err) {
     el.innerHTML = errorHTML(err);
