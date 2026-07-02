@@ -1,0 +1,6 @@
+.claude/settings.local.json
+.vercel
+.env
+.env.local
+supabase/.temp
+node_modules

@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clobe 조회창 — 재무 데이터 뷰어 (Mockup)</title>
+<style>
+  :root {
+    --page:#f9f9f7; --surface-1:#fcfcfb; --surface-2:#ffffff;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#898781;
+    --gridline:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --series-1:#2a78d6; --series-2:#1baf7a; --series-3:#eda100; --series-6:#e34948;
+    --seq-100:#cde2fb; --seq-250:#86b6ef; --good:#006300; --good-mark:#0ca30c;
+    --critical:#d03b3b; --warning:#fab219; --accent-soft:rgba(42,120,214,0.10);
+    --radius:12px; --sans: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#201f1e;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#898781;
+      --gridline:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+      --series-1:#3987e5; --series-2:#199e70; --series-3:#c98500; --series-6:#e66767;
+      --seq-100:#184f95; --seq-250:#2a78d6; --good:#0ca30c; --good-mark:#0ca30c;
+      --critical:#e66767; --warning:#fab219; --accent-soft:rgba(57,135,229,0.16);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--page); color: var(--text-primary); -webkit-font-smoothing: antialiased; font-size: 14px; line-height: 1.5; }
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+
+  .sidebar { background: var(--surface-1); border-right: 1px solid var(--border); padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
+  .brand .logo { width: 30px; height: 30px; border-radius: 8px; background: var(--series-1); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 16px; }
+  .brand .name { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 11px; color: var(--text-muted); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; cursor: pointer; color: var(--text-secondary); font-weight: 500; user-select: none; border: none; background: none; width: 100%; text-align: left; font-family: inherit; font-size: 14px; }
+  .nav-item:hover { background: var(--accent-soft); color: var(--text-primary); }
+  .nav-item.active { background: var(--series-1); color: #fff; }
+  .nav-item .ico { width: 18px; text-align: center; }
+  .nav-badge { margin-left: auto; font-size: 11px; background: var(--border); padding: 1px 7px; border-radius: 10px; color: var(--text-secondary); }
+  .nav-item.active .nav-badge { background: rgba(255,255,255,0.25); color: #fff; }
+  .sidebar-foot { margin-top: auto; font-size: 11px; color: var(--text-muted); padding: 8px; }
+
+  .main { padding: 24px 28px 48px; min-width: 0; }
+  .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 20; background: var(--page);
+    margin: -24px -28px 20px; padding: 16px 28px; border-bottom: 1px solid var(--border); }
+  .topbar h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
+  .topbar-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+  select, .select-sm { font-family: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-primary); cursor: pointer; }
+  .select-sm { font-size: 12.5px; padding: 6px 10px; border-radius: 8px; }
+  .stale { font-size: 12px; color: var(--text-secondary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 9px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 8px; }
+  .stale .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good-mark); }
+
+  .daterange { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .date-custom { display: flex; align-items: center; gap: 6px; margin-left: 2px; color: var(--text-muted); }
+  .date-custom input[type=date] { font-family: inherit; font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text-primary); }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .tile .label { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; }
+  .tile .value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  .tile .value .unit { font-size: 14px; font-weight: 500; color: var(--text-muted); margin-left: 2px; }
+  .tile .delta { font-size: 12.5px; margin-top: 6px; display: flex; align-items: center; gap: 5px; }
+  .delta.up { color: var(--good); } .delta.down { color: var(--critical); } .delta.flat { color: var(--text-muted); }
+
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .panel h2 { font-size: 15px; margin: 0 0 4px; }
+  .panel .desc { font-size: 12.5px; color: var(--text-muted); margin: 0 0 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 1080px){ .grid-2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2,1fr);} }
+
+  .range-note { font-size: 12px; color: var(--text-muted); margin: -8px 0 14px; }
+  .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .chip { font-size: 12.5px; padding: 6px 13px; border-radius: 20px; cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-secondary); user-select: none; }
+  .chip:hover { background: var(--accent-soft); }
+  .chip.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+  .search { flex: 1; min-width: 160px; }
+  .search input { width: 100%; font-family: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-primary); }
+
+  .map-list { display: flex; flex-direction: column; gap: 10px; }
+  .map-row { display: grid; grid-template-columns: 140px 1fr auto; align-items: center; gap: 12px; max-width: 600px; }
+  .holder-input, .alias-input, .pa { font-family: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-primary); }
+  .holder-input:focus, .alias-input:focus, .pa:focus { outline: none; border-color: var(--series-1); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .map-row .stat { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .party-row { display: grid; grid-template-columns: 170px repeat(3, 1fr); gap: 10px; align-items: center; margin-bottom: 8px; }
+  .party-row .pname { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pa { font-size: 12.5px; padding: 6px 10px; }
+  .party-head { display: grid; grid-template-columns: 170px repeat(3, 1fr); gap: 10px; font-size: 11.5px; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; }
+  .party-table th.sortable { cursor: pointer; user-select: none; }
+  .party-table th.sortable:hover { color: var(--text-secondary); }
+  .party-table td { padding: 6px 8px; }
+  .party-table td.pname-cell { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; font-weight: 500; }
+  .party-table .pa { width: 100%; min-width: 90px; padding: 6px 8px; font-size: 12.5px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--gridline); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 12px; white-space: nowrap; }
+  tbody tr:hover { background: var(--accent-soft); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .out { color: var(--critical); } .in { color: var(--good); }
+  .pill { font-size: 11.5px; padding: 2px 9px; border-radius: 20px; background: var(--border); color: var(--text-secondary); display: inline-block; white-space: nowrap; }
+  .pill.unclassified { background: rgba(250,178,25,0.20); color: #8a6100; }
+  .pill.holder, .pill.attr { background: var(--accent-soft); color: var(--series-1); font-weight: 600; }
+  @media (prefers-color-scheme: dark){ .pill.unclassified { color: var(--warning); } }
+  .acc-alias { color: var(--text-muted); font-size: 12px; }
+  .link { color: var(--series-1); cursor: pointer; border-bottom: 1px dashed rgba(42,120,214,0.45); }
+  .link:hover { border-bottom-style: solid; }
+  .tag-row { margin-top: 3px; display: flex; gap: 4px; flex-wrap: wrap; }
+
+  .bars { display: flex; flex-direction: column; gap: 10px; }
+  .bar-row { display: grid; grid-template-columns: 150px 1fr 90px; align-items: center; gap: 10px; font-size: 12.5px; }
+  .bar-row .bname { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { background: var(--gridline); border-radius: 4px; height: 14px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--series-1); border-radius: 0 4px 4px 0; }
+  .bar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+
+  .cols { display: flex; align-items: flex-end; gap: 8px; height: 180px; padding-top: 10px; }
+  .col-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .col { width: 24px; max-width: 60%; background: var(--series-2); border-radius: 4px 4px 0 0; }
+  .col-cap { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .col-x { font-size: 11px; color: var(--text-muted); }
+
+  .empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+  .empty .big { font-size: 15px; color: var(--text-secondary); margin-bottom: 6px; }
+  .foot-note { font-size: 12px; color: var(--text-muted); margin-top: 10px; display: flex; gap: 6px; align-items: flex-start; }
+  a { color: var(--series-1); }
+
+  /* modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 50; padding: 24px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; max-width: 860px; width: 100%; max-height: 86vh; overflow: auto; box-shadow: 0 24px 70px rgba(0,0,0,0.35); }
+  .modal-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--gridline); position: sticky; top: 0; background: var(--surface-1); z-index: 1; }
+  .modal-head h3 { margin: 0; font-size: 17px; }
+  .modal-head .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; }
+  .modal-close { border: none; background: var(--border); color: var(--text-primary); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 15px; }
+  .modal-close:hover { background: var(--accent-soft); }
+  .modal-body { padding: 18px 22px; }
+  .modal-body h4 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); }
+
+  /* chatbot */
+  #chat-fab { position: fixed; right: 24px; bottom: 24px; width: 54px; height: 54px; border-radius: 50%; border: none; background: var(--series-1); color: #fff; font-size: 22px; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.28); z-index: 60; }
+  #chat-fab:hover { filter: brightness(1.05); }
+  .chat-win { position: fixed; right: 24px; bottom: 88px; width: 384px; max-width: calc(100vw - 32px); height: 540px; max-height: calc(100vh - 130px); background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 24px 70px rgba(0,0,0,0.38); display: none; flex-direction: column; z-index: 60; overflow: hidden; }
+  .chat-win.open { display: flex; }
+  .chat-head { padding: 14px 16px; border-bottom: 1px solid var(--gridline); font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .chat-head .sub2 { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+  .chat-head button { border: none; background: none; color: var(--text-muted); cursor: pointer; font-size: 15px; }
+  .chat-body { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 88%; padding: 10px 13px; border-radius: 12px; font-size: 13px; line-height: 1.55; }
+  .msg.user { align-self: flex-end; background: var(--series-1); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg .act { margin-top: 10px; }
+  .msg .act button { font-family: inherit; font-size: 12px; padding: 6px 11px; border-radius: 8px; border: 1px solid var(--series-1); background: var(--accent-soft); color: var(--series-1); cursor: pointer; }
+  .chat-mini { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  .chat-mini td { padding: 4px 6px; border-bottom: 1px solid var(--gridline); }
+  .chat-mini td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chat-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--gridline); }
+  .chat-input input { flex: 1; font-family: inherit; font-size: 13px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-primary); }
+  .chat-input button { border: none; background: var(--series-1); color: #fff; border-radius: 9px; padding: 0 14px; cursor: pointer; font-family: inherit; font-size: 13px; }
+  .suggest { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .suggest .chip { font-size: 11.5px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">C</div><div><div class="name">Clobe</div><div class="sub">조회창 · Mockup</div></div></div>
+    <button class="nav-item active" data-view="overview"><span class="ico">▦</span> 개요</button>
+    <button class="nav-item" data-view="account"><span class="ico">₩</span> 계좌 · 입출금<span class="nav-badge" id="badge-tx">0</span></button>
+    <button class="nav-item" data-view="cards"><span class="ico">▤</span> 카드 내역<span class="nav-badge" id="badge-card">0</span></button>
+    <button class="nav-item" data-view="tax"><span class="ico">▧</span> 세금계산서·매출</button>
+    <button class="nav-item" data-view="manage"><span class="ico">⚙</span> 환경설정</button>
+    <div class="sidebar-foot">목업 데이터 · 실 데이터 연동 전<br>© Clobe Viewer</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="view-title">개요</h1>
+      <div class="topbar-controls">
+        <div id="daterange" class="daterange"></div>
+        <span class="stale"><span class="dot"></span> 수집 2026-07-02 05:05</span>
+        <select id="company-select"><option value="jnh">주식회사 제이앤에이취프레스</option></select>
+      </div>
+    </div>
+    <div id="content"></div>
+  </main>
+</div>
+<div class="modal-overlay" id="modal"></div>
+
+<button id="chat-fab" title="Clobe 어시스턴트">💬</button>
+<div class="chat-win" id="chat-win">
+  <div class="chat-head"><span>Clobe 어시스턴트 <span class="sub2">자연어 조회 (Mockup)</span></span><button id="chat-close">✕</button></div>
+  <div class="chat-body" id="chat-body"></div>
+  <div class="chat-input"><input id="chat-text" placeholder="예: 어제 입출금 내역 알려줘" autocomplete="off"><button id="chat-send">전송</button></div>
+</div>
+
+<script>
+/* ============================================================
+   MOCK DATA — 실 연동 시 이 DATA 객체만 clobe 응답으로 교체.
+   ============================================================ */
+const KRW = n => "₩" + Math.round(n).toLocaleString("ko-KR");
+const compact = n => {
+  const a = Math.abs(n);
+  if (a >= 1e8) return "₩" + (n/1e8).toFixed(a>=1e9?0:1) + "억";
+  if (a >= 1e4) return "₩" + Math.round(n/1e4).toLocaleString("ko-KR") + "만";
+  return "₩" + Math.round(n).toLocaleString("ko-KR");
+};
+
+const DATA = {
+  company: "주식회사 제이앤에이취프레스",
+  accounts: [
+    { bank:"기업", num:"270-131805-04-016", name:"IBK플러스기업자유예금", alias:"기업자유(MMDA)", type:"CHECKING", cur:"KRW", krw:367994054 },
+    { bank:"신협", num:"640-017667-01-012", name:"보통예금", alias:"기술혁신개발", type:"CHECKING", cur:"KRW", krw:46686686 },
+    { bank:"기업", num:"120-122830-04-016", name:"대한민국企UP통장", alias:"기업자유", type:"CHECKING", cur:"KRW", krw:39996175 },
+    { bank:"기업", num:"270-131805-04-023", name:"IBK플러스기업자유예금", alias:"일병행학습", type:"CHECKING", cur:"KRW", krw:15782593 },
+    { bank:"기업", num:"120-122830-96-001", name:"IBK그랑프리국공채MMF", alias:"수익증권", type:"FUND", cur:"KRW", krw:6397058 },
+    { bank:"기업", num:"270-131805-56-00018", name:"거주자외화보통예금", alias:"", type:"FX", cur:"EUR", fx:16561.99, krw:29284911 },
+    { bank:"기업", num:"270-131805-56-00018", name:"거주자외화보통예금", alias:"", type:"FX", cur:"USD", fx:12736.79, krw:19721646 },
+    { bank:"기업", num:"009-531805-56-00010", name:"거주자 IBK플러스외화예금", alias:"", type:"FX", cur:"USD", fx:12613.13, krw:19530170 },
+    { bank:"기업", num:"270-131805-56-00018", name:"거주자외화보통예금", alias:"", type:"FX", cur:"JPY", fx:240014, krw:2285533 },
+    { bank:"우리", num:"1005-500-930007", name:"기업자유예금", alias:"", type:"CHECKING", cur:"KRW", krw:737211 },
+    { bank:"기업", num:"270-131805-56-00018", name:"거주자외화보통예금", alias:"", type:"FX", cur:"CNY", fx:3670.82, krw:836250 },
+    { bank:"기업", num:"009-531805-04-018", name:"기업자유예금", alias:"스마트공장구축", type:"CHECKING", cur:"KRW", krw:967075 },
+  ],
+  loans: [
+    { name:"중소기업시설자금대출", num:"009-531805-32-00053", krw:8700000000 },
+    { name:"중소기업자금대출", num:"009-531805-32-00040", krw:3000000000 },
+    { name:"중소기업시설자금대출", num:"009-531805-32-00054", krw:3000000000 },
+    { name:"중소기업자금대출", num:"009-531805-32-00052", krw:1500000000 },
+    { name:"중소기업자금대출", num:"009-531805-32-00031", krw:1000000000 },
+    { name:"중소기업자금대출", num:"009-531805-32-00041", krw:1000000000 },
+  ],
+  transactions: [
+    { date:"2026-07-01 17:19", name:"이은복", desc:"이은복", out:280000, in:0, cat:null, acc:"기업 270-131805-04-016" },
+    { date:"2026-07-01 16:56", name:"(주)헌드레드", desc:"(주)헌드레드", out:500000, in:0, cat:"지급수수료", acc:"기업 270-131805-04-016" },
+    { date:"2026-07-01 16:56", name:"(주)헌드레드", desc:"(주)헌드레드", out:500000, in:0, cat:"지급수수료", acc:"기업 270-131805-04-016" },
+    { date:"2026-07-01 16:00", name:"조성복(시흥정왕)", desc:"운송비", out:7000, in:0, cat:"운반비", acc:"기업 270-131805-04-016" },
+    { date:"2026-07-01 16:00", name:"김숙경(대길합동관세)", desc:"통관 관세 수수료", out:35511684, in:0, cat:"지급수수료", acc:"기업 270-131805-04-016" },
+    { date:"2026-07-01 10:42", name:"최중일(경인국제특허)", desc:"특허 출원 수수료", out:668000, in:0, cat:"지급수수료", acc:"기업 270-131805-04-016" },
+    { date:"2026-06-30 15:20", name:"(주)대한상사", desc:"제품 판매대금", out:0, in:44000000, cat:"제품매출", acc:"기업 270-131805-04-016" },
+    { date:"2026-06-30 11:05", name:"삼성카드", desc:"카드대금 결제", out:8420500, in:0, cat:"미지급금", acc:"기업 120-122830-04-016" },
+    { date:"2026-06-30 09:30", name:"국민연금공단", desc:"6월 4대보험", out:6231400, in:0, cat:"복리후생비", acc:"기업 270-131805-04-016" },
+    { date:"2026-06-29 14:10", name:"(주)글로벌테크", desc:"수출대금 입금", out:0, in:71200000, cat:"제품매출", acc:"기업 270-131805-56-00018" },
+    { date:"2026-06-29 10:00", name:"한국전력공사", desc:"6월 전기요금", out:3184220, in:0, cat:"수도광열비", acc:"기업 270-131805-04-016" },
+    { date:"2026-06-28 16:40", name:"임차료-정왕빌딩", desc:"7월 임차료", out:5500000, in:0, cat:"임차료", acc:"기업 120-122830-04-016" },
+    { date:"2026-06-15 13:00", name:"신한카드", desc:"카드대금 결제", out:3120800, in:0, cat:"미지급금", acc:"기업 120-122830-04-016" },
+    { date:"2026-06-10 09:15", name:"(주)에이스물산", desc:"제품 판매대금", out:0, in:28500000, cat:"제품매출", acc:"기업 270-131805-04-016" },
+  ],
+  // clobe 실데이터 (get_labeled_card_billing_items) — 6/25 청구분, 카드별 합계 발췌
+  cardBilling: [
+    { payDate:"2026-06-25", merchant:"신한 6월 청구분", card:"5589-0329-0995", amount:7996900, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"신한 6월 청구분", card:"5589-0318-4921", amount:467000, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"신한 6월 청구분", card:"5589-0315-7957", amount:365000, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"신한 6월 청구분", card:"5589-0316-6968", amount:22000, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"6월 청구분", card:"5531-****-1547", amount:636150, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"BC 6월 청구분", card:"4140-0325-8936", amount:402000, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"BC 6월 청구분", card:"4140-0308-7949", amount:295947, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"BC 6월 청구분", card:"4140-0326-2940", amount:54080, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"BC 6월 청구분", card:"9430-0323-9947", amount:220840, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"BC 6월 청구분", card:"9430-0331-2998", amount:166000, cat:"미지급금" },
+    { payDate:"2026-06-25", merchant:"BC 6월 청구분", card:"6250-0308-5983", amount:140200, cat:"미지급금" },
+  ],
+  // clobe 실데이터 — 가맹점별 이용내역 (사용일 기준) 발췌
+  cardUsage: [
+    { date:"2026-06-02", merchant:"(주)대한항공", card:"5589-0329-0995", amount:3760600, cat:"여비교통비" },
+    { date:"2026-06-02", merchant:"(주)대한항공", card:"5589-0329-0995", amount:3689600, cat:"여비교통비" },
+    { date:"2026-06-02", merchant:"바움피엔에스㈜", card:"5531-****-1547", amount:535500, cat:null },
+    { date:"2026-06-02", merchant:"호텔별", card:"4140-0325-8936", amount:300000, cat:"여비교통비" },
+    { date:"2026-06-02", merchant:"쿨타임", card:"5589-0318-4921", amount:190000, cat:"복리후생비" },
+    { date:"2026-06-02", merchant:"주식회사 이엠석유 함안(하)주유소", card:"9430-0323-9947", amount:150000, cat:"차량유지비" },
+    { date:"2026-06-02", merchant:"지에스칼텍스 시화공단주유소", card:"5589-0329-0995", amount:120000, cat:"차량유지비" },
+    { date:"2026-06-02", merchant:"시흥버스터미널(주)월곶점", card:"5589-0315-7957", amount:113000, cat:"차량유지비" },
+    { date:"2026-06-02", merchant:"한돈단불뒷고기", card:"4140-0325-8936", amount:102000, cat:"복리후생비" },
+    { date:"2026-06-02", merchant:"다옴호텔", card:"9430-0331-2998", amount:100000, cat:"여비교통비" },
+    { date:"2026-06-02", merchant:"정부24", card:"4140-0326-2940", amount:54080, cat:"지급수수료" },
+    { date:"2026-06-02", merchant:"신태양자동차공업사", card:"5589-0318-4921", amount:45000, cat:"차량유지비" },
+    { date:"2026-06-02", merchant:"티머니택시(개인)", card:"6250-0308-5983", amount:25200, cat:"여비교통비" },
+    { date:"2026-06-01", merchant:"한식주점 선주가 배곧점", card:"5589-0315-7957", amount:152000, cat:"복리후생비" },
+    { date:"2026-06-01", merchant:"N모텔", card:"4140-0308-7949", amount:150000, cat:"여비교통비" },
+    { date:"2026-06-01", merchant:"주식회사 서원문경(하)주유소", card:"4140-0308-7949", amount:125947, cat:"차량유지비" },
+    { date:"2026-06-01", merchant:"(주)아시아나항공", card:"5589-0329-0995", amount:106200, cat:"여비교통비" },
+    { date:"2026-06-01", merchant:"신반포주유소", card:"5531-****-1547", amount:100650, cat:"차량유지비" },
+    { date:"2026-06-01", merchant:"주식회사 태백철강", card:"9430-0323-9947", amount:70840, cat:"소모품비" },
+    { date:"2026-06-01", merchant:"지원철물", card:"9430-0331-2998", amount:66000, cat:"소모품비" },
+    { date:"2026-06-01", merchant:"경주육회", card:"6250-0308-5983", amount:115000, cat:"복리후생비" },
+    { date:"2026-05-31", merchant:"삼성물산 가평베네스트골프클럽", card:"5589-0329-0995", amount:320500, cat:"복리후생비" },
+    { date:"2026-05-31", merchant:"홍성구항한우", card:"5589-0318-4921", amount:232000, cat:"복리후생비" },
+    { date:"2026-05-31", merchant:"이케이에너지 무산주유소", card:"5589-0315-7957", amount:100000, cat:"차량유지비" },
+    { date:"2026-05-31", merchant:"배곧스크린골프 서울대점", card:"5589-0316-6968", amount:22000, cat:"복리후생비" },
+  ],
+  // clobe 실데이터 (2026-06-25 ~ 07-01) — get_tax_invoices 결과에서 발췌
+  taxInvoices: [
+    { date:"2026-06-29", partner:"에이치앤디이(주)", regNo:"456-87-00470", type:"SALES", supply:855000000, vat:85500000 },
+    { date:"2026-06-29", partner:"에이치앤디이(주)", regNo:"456-87-00470", type:"SALES", supply:140000000, vat:14000000 },
+    { date:"2026-06-29", partner:"에이치앤디이(주)", regNo:"456-87-00470", type:"SALES", supply:66500000, vat:6650000 },
+    { date:"2026-06-26", partner:"경보단조", regNo:"388-33-00854", type:"SALES", supply:8000000, vat:800000 },
+    { date:"2026-06-26", partner:"원강산업(주)", regNo:"608-81-62890", type:"SALES", supply:3900000, vat:390000 },
+    { date:"2026-06-26", partner:"흥국금속", regNo:"615-85-35744", type:"SALES", supply:2300000, vat:230000 },
+    { date:"2026-06-26", partner:"(주)하이원", regNo:"608-81-59191", type:"SALES", supply:1275000, vat:127500 },
+    { date:"2026-06-26", partner:"(주)하이원", regNo:"608-81-59191", type:"SALES", supply:1110000, vat:111000 },
+    { date:"2026-06-26", partner:"아이티알포징(주)", regNo:"406-86-01477", type:"SALES", supply:1200000, vat:120000 },
+    { date:"2026-06-26", partner:"태성정밀단조", regNo:"615-17-12117", type:"SALES", supply:760000, vat:76000 },
+    { date:"2026-06-26", partner:"서울기연(주)", regNo:"139-81-30719", type:"SALES", supply:750000, vat:75000 },
+    { date:"2026-06-26", partner:"삼인정공(주)", regNo:"505-81-47775", type:"SALES", supply:680000, vat:68000 },
+    { date:"2026-06-26", partner:"(주)덕성테크", regNo:"433-87-01739", type:"SALES", supply:300000, vat:30000 },
+    { date:"2026-06-26", partner:"세일단조(주)", regNo:"613-81-19833", type:"SALES", supply:290000, vat:29000 },
+    { date:"2026-07-01", partner:"평택세관", regNo:"125-83-02178", type:"PURCHASE", supply:278714332, vat:27871430 },
+    { date:"2026-07-01", partner:"아이엔지글로벌(주)", regNo:"505-81-60327", type:"PURCHASE", supply:23560000, vat:2356000 },
+    { date:"2026-07-01", partner:"주식회사 세영시스템", regNo:"486-87-02178", type:"PURCHASE", supply:22800000, vat:2280000 },
+    { date:"2026-07-01", partner:"주식회사 세영시스템", regNo:"486-87-02178", type:"PURCHASE", supply:8900000, vat:890000 },
+    { date:"2026-06-30", partner:"롯데렌탈(주)", regNo:"214-87-79183", type:"PURCHASE", supply:768182, vat:76818 },
+    { date:"2026-06-30", partner:"(주)루텍에스", regNo:"131-86-68967", type:"PURCHASE", supply:1300000, vat:130000 },
+    { date:"2026-06-29", partner:"평택세관", regNo:"125-83-02178", type:"PURCHASE", supply:53680174, vat:5368010 },
+    { date:"2026-06-26", partner:"인천세관", regNo:"121-83-00561", type:"PURCHASE", supply:133956925, vat:13395690 },
+    { date:"2026-06-26", partner:"인천세관", regNo:"121-83-00561", type:"PURCHASE", supply:60884645, vat:6088460 },
+    { date:"2026-06-25", partner:"평택세관", regNo:"125-83-02178", type:"PURCHASE", supply:267535850, vat:26753580 },
+    { date:"2026-06-25", partner:"대한주강주식회사", regNo:"137-81-07696", type:"PURCHASE", supply:116263520, vat:11626352 },
+    { date:"2026-06-25", partner:"영흥금속공업(주)", regNo:"306-81-26135", type:"PURCHASE", supply:41028000, vat:4102800 },
+    { date:"2026-06-25", partner:"(주)우성금속", regNo:"137-81-38831", type:"PURCHASE", supply:26636400, vat:2663640 },
+    { date:"2026-06-25", partner:"(주)대성전기", regNo:"131-81-32649", type:"PURCHASE", supply:24000000, vat:2400000 },
+    { date:"2026-06-25", partner:"정동목형제작소", regNo:"137-07-68956", type:"PURCHASE", supply:20220000, vat:2022000 },
+    { date:"2026-06-25", partner:"주식회사 광일시스템", regNo:"134-86-29338", type:"PURCHASE", supply:11000000, vat:1100000 },
+  ],
+  monthlyRevenue: [
+    { month:"2026-02", net:412000000 }, { month:"2026-03", net:388500000 },
+    { month:"2026-04", net:501200000 }, { month:"2026-05", net:467800000 },
+    { month:"2026-06", net:534600000 }, { month:"2026-07", net:115200000 },
+  ],
+};
+
+/* ---------- persistence stores ---------- */
+const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch(e){ return d; } };
+const save = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+const DEFAULT_HOLDERS = { "5589-0329-0995":"조*성","5589-0318-4921":"조*현","5589-0315-7957":"조*철","5589-0316-6968":"조*민","5531-****-1547":"법인 공용" };
+let cardHolders = Object.assign({}, DEFAULT_HOLDERS, load("clobe_card_holders", {}));   // clobe userNames 자동 매칭 + 사용자 수정분
+let acctAlias   = load("clobe_account_alias", {});  // {num: alias}
+let partyAttrs  = load("clobe_party_attrs", {});    // {name: {type,process,cost}}
+
+/* ---------- date range ---------- */
+const TODAY = new Date(2026, 6, 2);
+const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const ALL_DATES = [
+  ...DATA.transactions.map(t=>t.date), ...DATA.cardBilling.map(c=>c.payDate),
+  ...DATA.cardUsage.map(c=>c.date), ...DATA.taxInvoices.map(t=>t.date)
+].map(d=>d.slice(0,10)).sort();
+const MIN_DATE = ALL_DATES[0];
+function presetRange(p){
+  const end = fmt(TODAY); let s = new Date(TODAY);
+  if (p==="today") {}
+  else if (p==="7d")  s.setDate(s.getDate()-6);
+  else if (p==="30d") s.setDate(s.getDate()-29);
+  else if (p==="90d") s.setDate(s.getDate()-89);
+  else if (p==="mtd") s = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+  else if (p==="all") return { start: MIN_DATE, end };
+  return { start: fmt(s), end };
+}
+let dateRange = Object.assign({ preset:"90d" }, presetRange("90d"));
+const inRange = dateStr => { const d = dateStr.slice(0,10); return d >= dateRange.start && d <= dateRange.end; };
+
+/* ---------- lookups ---------- */
+const sumBy = (arr, f) => arr.reduce((s,x)=>s+f(x),0);
+const availableCash = sumBy(DATA.accounts, a=>a.krw);
+const yesterdayOut = sumBy(DATA.transactions.filter(t=>t.date.startsWith("2026-07-01")), t=>t.out);
+const monthRevenue = DATA.monthlyRevenue.find(m=>m.month==="2026-06").net;
+
+const OWNED_CARDS = ["5589-0329-0995","5589-0318-4921","5589-0315-7957","5589-0316-6968","5531-****-1547","4140-0325-8936","4140-0308-7949","4140-0326-2940","9430-0323-9947","9430-0331-2998","6250-0308-5983"]; // clobe 실 카드번호 (마스킹)
+const uniqueCards = () => { const s=new Set(OWNED_CARDS); DATA.cardBilling.forEach(c=>s.add(c.card)); DATA.cardUsage.forEach(c=>s.add(c.card)); return [...s]; };
+const uniqueParties = () => { const s=new Set(); DATA.transactions.forEach(t=>s.add(t.name)); DATA.taxInvoices.forEach(t=>s.add(t.partner)); return [...s]; };
+const uniqueAccNums = () => [...new Set(DATA.accounts.map(a=>a.num))];
+const holderOf = card => cardHolders[card] || "";
+const aliasOf = num => acctAlias[num] || (DATA.accounts.find(a=>a.num===num)||{}).alias || "";
+const attrOf = name => partyAttrs[name] || {};
+const accNumOf = accStr => accStr.split(" ").pop();
+const distinctAttr = k => [...new Set(Object.values(partyAttrs).map(a=>a[k]).filter(Boolean))];
+
+/* ---------- render helpers ---------- */
+const catPill = c => c ? `<span class="pill">${c}</span>` : `<span class="pill unclassified">미분류</span>`;
+const drill = (type,key,inner) => `<span class="link" data-drill="${type}|${key}">${inner}</span>`;
+const cardCell = card => `<span class="link" data-drill="card|${card}"><span class="pill">${card}</span>${holderOf(card)?` <span class="pill holder">${holderOf(card)}</span>`:""}</span>`;
+function partyTags(name){
+  const a = attrOf(name);
+  const tags = [a.type,a.process,a.cost].filter(Boolean).map(v=>`<span class="pill attr">${v}</span>`).join("");
+  return tags ? `<div class="tag-row">${tags}</div>` : "";
+}
+const emptyBox = (msg="관련 내역이 없습니다") => `<div class="empty"><div class="big">내역 없음</div>${msg}</div>`;
+const rangeNote = () => `<div class="range-note">조회 기간: ${dateRange.start} ~ ${dateRange.end}</div>`;
+const page = list => ({ shown: list, total: list.length, truncated: false });
+const pageNote = () => "";
+
+function updateBadges(){
+  document.getElementById("badge-tx").textContent = DATA.transactions.filter(t=>inRange(t.date)).length;
+  document.getElementById("badge-card").textContent = DATA.cardUsage.filter(c=>inRange(c.date)).length + DATA.cardBilling.filter(c=>inRange(c.payDate)).length;
+}
+
+/* ---------- reusable tables ---------- */
+function txTableHTML(list){
+  if (!list.length) return emptyBox("선택한 조건에 해당하는 거래가 없습니다.");
+  const rows = list.map(t=>{
+    const num = accNumOf(t.acc), a = attrOf(t.name);
+    return `<tr>
+      <td>${t.date}</td>
+      <td>${drill("party",t.name,t.name)}<div class="acc-alias">${t.desc}</div></td>
+      <td>${catPill(t.cat)}</td>
+      <td class="acc-alias">${a.type||"—"}</td>
+      <td class="acc-alias">${a.process||"—"}</td>
+      <td class="acc-alias">${a.cost||"—"}</td>
+      <td>${drill("acct",num,num)}${aliasOf(num)?`<div class="acc-alias">${aliasOf(num)}</div>`:""}</td>
+      <td class="num ${t.in?'in':''}">${t.in?KRW(t.in):"—"}</td>
+      <td class="num ${t.out?'out':''}">${t.out?"−"+KRW(t.out):"—"}</td></tr>`;
+  }).join("");
+  return `<table><thead><tr><th>일시</th><th>거래처 / 적요</th><th>계정</th><th>거래유형</th><th>공정유형</th><th>비용유형</th><th>계좌</th><th class="num">입금</th><th class="num">출금</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function cardUsageTableHTML(list){
+  if (!list.length) return emptyBox("선택한 조건의 카드 사용이 없습니다.");
+  const rows = list.map(c=>`<tr><td>${c.date}</td><td>${c.merchant}</td><td>${cardCell(c.card)}</td><td>${catPill(c.cat)}</td><td class="num">${KRW(c.amount)}</td></tr>`).join("");
+  return `<table><thead><tr><th>일시</th><th>가맹점</th><th>카드 / 사용자</th><th>계정</th><th class="num">금액</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function cardBillTableHTML(list){
+  if (!list.length) return emptyBox("선택한 기간에 청구된 카드 내역이 없습니다.");
+  const rows = list.map(c=>`<tr><td>${c.payDate}</td><td>${c.merchant}</td><td>${cardCell(c.card)}</td><td>${catPill(c.cat)}</td><td class="num">${KRW(c.amount)}</td></tr>`).join("");
+  return `<table><thead><tr><th>결제일</th><th>청구 내용</th><th>카드 / 사용자</th><th>계정</th><th class="num">금액</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function taxTableHTML(list){
+  if (!list.length) return emptyBox("세금계산서가 없습니다.");
+  const rows = list.map(t=>`<tr>
+    <td>${t.date}</td>
+    <td>${drill("party",t.partner,t.partner)}<div class="acc-alias">${t.regNo}</div></td>
+    <td><span class="pill" style="${t.type==='SALES'?'background:rgba(27,175,122,0.18);color:var(--good)':''}">${t.type==='SALES'?'매출':'매입'}</span></td>
+    <td class="num">${KRW(t.supply)}</td><td class="num">${KRW(t.vat)}</td><td class="num">${KRW(t.supply+t.vat)}</td></tr>`).join("");
+  return `<table><thead><tr><th>작성일</th><th>거래처</th><th>구분</th><th class="num">공급가액</th><th class="num">부가세</th><th class="num">합계</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ============================================================
+   MODAL (엔티티 드릴다운)
+   ============================================================ */
+const modalEl = document.getElementById("modal");
+function openModal(type, key){
+  let title="", sub="", body="";
+  if (type==="party"){
+    const a = attrOf(key);
+    const tx = DATA.transactions.filter(t=>t.name===key);
+    const tax = DATA.taxInvoices.filter(t=>t.partner===key);
+    const tags = [["거래유형",a.type],["공정",a.process],["비용유형",a.cost]].filter(x=>x[1]).map(x=>`<span class="pill attr">${x[0]}: ${x[1]}</span>`).join("");
+    const info = [["사업자등록번호",a.regno],["대표자",a.ceo],["주소",a.addr]].filter(x=>x[1]);
+    const infoHtml = info.length ? `<div style="margin-bottom:10px;font-size:12.5px;color:var(--text-secondary)">${info.map(x=>`<b>${x[0]}</b> ${x[1]}`).join(" · ")}</div>` : "";
+    title = key; sub = `거래처 · 은행거래 ${tx.length}건 · 세금계산서 ${tax.length}건 (전체 기간)`;
+    body = `${infoHtml}${tags?`<div class="tag-row" style="margin-bottom:14px">${tags}</div>`:""}
+      ${(!info.length&&!tags)?`<p class="desc">속성 미지정 — ‘환경설정’에서 사업자등록번호·대표자·주소·거래유형 등을 입력할 수 있습니다.</p>`:""}
+      ${tx.length?`<h4>은행 입출금</h4>${txTableHTML(page(tx).shown,{showTags:false})}${pageNote(tx.length)}`:""}
+      ${tax.length?`<h4 style="margin-top:18px">세금계산서</h4>${taxTableHTML(page(tax).shown)}${pageNote(tax.length)}`:""}
+      ${(!tx.length&&!tax.length)?emptyBox():""}`;
+  } else if (type==="acct"){
+    const tx = DATA.transactions.filter(t=>accNumOf(t.acc)===key);
+    const bal = sumBy(DATA.accounts.filter(a=>a.num===key), a=>a.krw);
+    title = `${key}${aliasOf(key)?` · ${aliasOf(key)}`:""}`;
+    sub = `계좌 · 거래 ${tx.length}건 · 현재 잔액 ${KRW(bal)} (전체 기간)`;
+    body = tx.length ? txTableHTML(page(tx).shown)+pageNote(tx.length) : emptyBox();
+  } else if (type==="card"){
+    const use = DATA.cardUsage.filter(c=>c.card===key);
+    const bill = DATA.cardBilling.filter(c=>c.card===key);
+    title = `${key}${holderOf(key)?` · ${holderOf(key)}`:""}`;
+    sub = `카드 · 이용 ${use.length}건 · 청구 ${bill.length}건 (전체 기간)`;
+    body = `${use.length?`<h4>이용내역</h4>${cardUsageTableHTML(page(use).shown)}${pageNote(use.length)}`:""}${bill.length?`<h4 style="margin-top:18px">청구내역</h4>${cardBillTableHTML(page(bill).shown)}${pageNote(bill.length)}`:""}${(!use.length&&!bill.length)?emptyBox():""}`;
+  }
+  modalEl.innerHTML = `<div class="modal"><div class="modal-head"><div><h3>${title}</h3><div class="sub">${sub}</div></div><button class="modal-close" id="modal-x">✕</button></div><div class="modal-body">${body}</div></div>`;
+  modalEl.classList.add("open");
+  document.getElementById("modal-x").onclick = closeModal;
+}
+function closeModal(){ modalEl.classList.remove("open"); modalEl.innerHTML=""; }
+modalEl.onclick = e => { if (e.target===modalEl) closeModal(); };
+document.addEventListener("keydown", e => { if (e.key==="Escape") closeModal(); });
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-drill]");
+  if (t){ const raw=t.dataset.drill, i=raw.indexOf("|"); openModal(raw.slice(0,i), raw.slice(i+1)); }
+});
+
+/* ============================================================
+   DATE CONTROL
+   ============================================================ */
+const PRESETS = [["today","오늘"],["7d","최근 7일"],["30d","최근 30일"],["90d","최근 90일"],["mtd","이번 달"],["all","전체"]];
+function renderDateControl(){
+  const box = document.getElementById("daterange");
+  box.innerHTML =
+    PRESETS.map(([k,l])=>`<span class="chip ${dateRange.preset===k?'active':''}" data-dp="${k}">${l}</span>`).join("") +
+    `<span class="date-custom"><input type="date" id="d-start" value="${dateRange.start}"><span>~</span><input type="date" id="d-end" value="${dateRange.end}"></span>`;
+  box.querySelectorAll("[data-dp]").forEach(c=>c.onclick=()=>{ dateRange = Object.assign({preset:c.dataset.dp}, presetRange(c.dataset.dp)); refresh(); });
+  const ds=document.getElementById("d-start"), de=document.getElementById("d-end");
+  const onCustom=()=>{ dateRange={preset:"custom", start:ds.value, end:de.value}; refresh(); };
+  ds.onchange=onCustom; de.onchange=onCustom;
+}
+function refresh(){ renderDateControl(); updateBadges(); VIEWS[currentView].fn(); }
+
+/* ============================================================
+   MAPPING PANELS (매칭 입력)
+   ============================================================ */
+function holderPanel(){
+  const rows = uniqueCards().map(card=>{
+    const useSum = sumBy(DATA.cardUsage.filter(c=>c.card===card && inRange(c.date)), c=>c.amount);
+    return `<div class="map-row"><span class="pill">${card}</span>
+      <input class="holder-input" data-card="${card}" value="${holderOf(card)}" placeholder="사용자 이름 입력">
+      <span class="stat">기간 이용 ${KRW(useSum)}</span></div>`;
+  }).join("");
+  return `<div class="panel"><h2>카드 사용자 매칭</h2><p class="desc">카드 번호에 사용자(소유자) 이름을 입력하면 모든 조회에 함께 표시·필터됩니다. 자동 저장.</p><div class="map-list">${rows}</div></div>`;
+}
+function aliasPanel(){
+  const rows = uniqueAccNums().map(num=>{
+    const acc = DATA.accounts.find(a=>a.num===num);
+    const bal = sumBy(DATA.accounts.filter(a=>a.num===num), a=>a.krw);
+    return `<div class="map-row"><span class="pill">${num}</span>
+      <input class="alias-input" data-num="${num}" value="${acctAlias[num]||''}" placeholder="계좌 별명 입력 (예: 메인 운영계좌)">
+      <span class="stat">${acc.bank} · ${compact(bal)}</span></div>`;
+  }).join("");
+  return `<div class="panel"><h2>계좌 별명 매칭</h2><p class="desc">계좌번호에 별명을 입력하면 모든 조회·모달에 함께 표시됩니다. 자동 저장.</p><div class="map-list">${rows}</div></div>`;
+}
+let partySearch="", partySort={key:"name",dir:1};
+const PARTY_COLS = [{k:"name",l:"거래처"},{k:"regno",l:"사업자등록번호"},{k:"ceo",l:"대표자"},{k:"addr",l:"주소"},{k:"type",l:"거래유형"},{k:"process",l:"공정"},{k:"cost",l:"비용유형"}];
+function partyRowsFiltered(){
+  const q = partySearch.trim().toLowerCase();
+  let list = uniqueParties().map(p=>({p, a:attrOf(p)}));
+  if (q) list = list.filter(({p,a})=>(`${p} ${a.regno||''} ${a.ceo||''} ${a.addr||''} ${a.type||''} ${a.process||''} ${a.cost||''}`).toLowerCase().includes(q));
+  const {key,dir} = partySort;
+  list.sort((x,y)=>{ const xv=key==="name"?x.p:(x.a[key]||""); const yv=key==="name"?y.p:(y.a[key]||""); return String(xv).localeCompare(String(yv),"ko")*dir; });
+  return list;
+}
+function partyTable(){
+  const head = PARTY_COLS.map(c=>`<th class="sortable" data-sort="${c.k}">${c.l}${partySort.key===c.k?(partySort.dir>0?" ▲":" ▼"):""}</th>`).join("");
+  const list = partyRowsFiltered();
+  if (!list.length) return `<table class="party-table"><thead><tr>${head}</tr></thead></table><div class="empty">검색 결과가 없습니다.</div>`;
+  const pin=(p,k,v)=>`<input class="pa" data-p="${p}" data-k="${k}" value="${v||''}" placeholder="—">`;
+  const rows = list.map(({p,a})=>`<tr>
+      <td class="pname-cell">${p}</td>
+      <td>${pin(p,"regno",a.regno)}</td><td>${pin(p,"ceo",a.ceo)}</td><td>${pin(p,"addr",a.addr)}</td>
+      <td>${pin(p,"type",a.type)}</td><td>${pin(p,"process",a.process)}</td><td>${pin(p,"cost",a.cost)}</td></tr>`).join("");
+  return `<table class="party-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+function partyPanel(){
+  return `<div class="panel"><h2>거래처 등록</h2><p class="desc">거래처별 사업자등록번호·대표자·주소·거래유형·공정·비용유형을 입력합니다. 헤더를 클릭해 정렬하거나 검색으로 좁힐 수 있습니다. 자동 저장.</p>
+    <div class="filters"><span class="search"><input id="party-search" placeholder="거래처·사업자번호·대표자·주소 검색" value="${partySearch}" autocomplete="off"></span><span class="pill">${uniqueParties().length}개 거래처</span></div>
+    <div id="party-wrap">${partyTable()}</div></div>`;
+}
+function wireParty(){
+  const wrap = document.getElementById("party-wrap");
+  if (!wrap) return;
+  const bind = () => {
+    wrap.querySelectorAll("[data-sort]").forEach(h=>h.onclick=()=>{ const k=h.dataset.sort; if(partySort.key===k) partySort.dir*=-1; else partySort={key:k,dir:1}; rerender(); });
+    wrap.querySelectorAll(".pa").forEach(inp=>{
+      inp.oninput=()=>{ const p=inp.dataset.p,k=inp.dataset.k; (partyAttrs[p]=partyAttrs[p]||{})[k]=inp.value.trim(); save("clobe_party_attrs",partyAttrs); };
+      inp.onchange=()=>rerender();
+    });
+  };
+  const rerender = () => { wrap.innerHTML=partyTable(); bind(); };
+  bind();
+  const s = document.getElementById("party-search");
+  if (s) s.oninput = e => { partySearch=e.target.value; rerender(); }; // 검색창은 wrap 밖이라 포커스 유지됨
+}
+function wireMappingInputs(){
+  document.querySelectorAll(".holder-input").forEach(inp=>{
+    inp.oninput=()=>{ cardHolders[inp.dataset.card]=inp.value.trim(); save("clobe_card_holders",cardHolders); };
+    inp.onchange=()=>VIEWS[currentView].fn();
+  });
+  document.querySelectorAll(".alias-input").forEach(inp=>{
+    inp.oninput=()=>{ acctAlias[inp.dataset.num]=inp.value.trim(); save("clobe_account_alias",acctAlias); };
+    inp.onchange=()=>VIEWS[currentView].fn();
+  });
+}
+
+/* ============================================================
+   VIEWS
+   ============================================================ */
+const el = document.getElementById("content");
+
+function overview(){
+  const rev = DATA.monthlyRevenue, maxRev = Math.max(...rev.map(r=>r.net));
+  const cols = rev.map(r=>{
+    const h = Math.round(r.net/maxRev*140), isCur = r.month==="2026-07";
+    return `<div class="col-wrap"><div class="col-cap">${compact(r.net)}</div><div class="col" style="height:${h}px;background:${isCur?'var(--seq-250)':'var(--series-2)'}"></div><div class="col-x">${r.month.slice(5)}월</div></div>`;
+  }).join("");
+  const topAcc = [...DATA.accounts].sort((a,b)=>b.krw-a.krw).slice(0,6);
+  const maxAcc = Math.max(...topAcc.map(a=>a.krw));
+  const bars = topAcc.map(a=>`<div class="bar-row"><div class="bname">${drill("acct",a.num,aliasOf(a.num)||a.name)} <span class="acc-alias">${a.bank}</span></div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(2,a.krw/maxAcc*100)}%"></div></div><div class="bar-val">${compact(a.krw)}</div></div>`).join("");
+  el.innerHTML = `
+    <div class="kpis">
+      <div class="tile"><div class="label">총 가용 잔액</div><div class="value">${compact(availableCash)}</div><div class="delta flat">예금·펀드·외화 합계 (대출 제외)</div></div>
+      <div class="tile"><div class="label">어제 출금 (07-01)</div><div class="value">${compact(yesterdayOut)}</div><div class="delta down">▼ 6건 · 입금 0건</div></div>
+      <div class="tile"><div class="label">6월 매출 (net)</div><div class="value">${compact(monthRevenue)}</div><div class="delta up">▲ 전월 대비 +14.3%</div></div>
+      <div class="tile"><div class="label">총 대출 (부채)</div><div class="value" style="color:var(--critical)">${compact(sumBy(DATA.loans,l=>l.krw))}</div><div class="delta flat">${DATA.loans.length}건</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="panel"><h2>월별 매출 추이 (net)</h2><p class="desc">최근 6개월 · 정산 기준 · 이번 달은 진행 중</p><div class="cols">${cols}</div></div>
+      <div class="panel"><h2>상위 계좌 잔액</h2><p class="desc">원화 환산 기준 상위 6개 계좌 · 클릭 시 거래 상세</p><div class="bars">${bars}</div></div>
+    </div>
+    <div class="panel"><h2>어제 주요 입출금 (2026-07-01)</h2><p class="desc">거래처·계좌를 클릭하면 해당 내역만 모달로 열립니다.</p>${txTableHTML(DATA.transactions.filter(t=>t.date.startsWith("2026-07-01")))}</div>`;
+}
+
+function account(){
+  const end = dateRange.end;
+  const isSnapshot = end >= fmt(TODAY);
+  const curByNum = {}; DATA.accounts.forEach(a=>curByNum[a.num]=(curByNum[a.num]||0)+a.krw);
+  const netAfterNum = (num,asOf) => sumBy(DATA.transactions.filter(t=>accNumOf(t.acc)===num && t.date.slice(0,10) > asOf), t=>t.in - t.out);
+  const asOfKrw = a => { const cur=curByNum[a.num]||0; const share=cur?a.krw/cur:0; return a.krw - netAfterNum(a.num,end)*share; };
+  const rowsData = DATA.accounts.map(a=>({a, krw:asOfKrw(a)}));
+  const byType = {CHECKING:0,FUND:0,FX:0}; rowsData.forEach(r=>byType[r.a.type]+=r.krw);
+  const loanSum = sumBy(DATA.loans,l=>l.krw);
+
+  const accNums = [...new Set(DATA.transactions.map(t=>accNumOf(t.acc)))];
+  const match = t => txAccFilter==="ALL" || accNumOf(t.acc)===txAccFilter;
+  const scope = DATA.transactions.filter(t=>match(t)&&inRange(t.date));
+  const inSum = sumBy(scope,t=>t.in), outSum = sumBy(scope,t=>t.out);
+  let cur, netAfterEnd;
+  if (txAccFilter==="ALL"){ cur=availableCash; netAfterEnd=sumBy(DATA.transactions.filter(t=>t.date.slice(0,10)>end), t=>t.in-t.out); }
+  else { cur=curByNum[txAccFilter]||0; netAfterEnd=netAfterNum(txAccFilter,end); }
+  const closing = cur - netAfterEnd, opening = closing - (inSum - outSum);
+  const scopeLabel = txAccFilter==="ALL" ? "전체 계좌" : (aliasOf(txAccFilter)||txAccFilter);
+
+  const filtered = scope.filter(t=>{
+    const dirOk = txFilter==="ALL"||(txFilter==="IN"&&t.in)||(txFilter==="OUT"&&t.out)||(txFilter==="UNC"&&!t.cat);
+    const q=txSearch.trim(); const a=attrOf(t.name);
+    const searchOk = !q || (`${t.name} ${t.desc} ${t.cat||''} ${a.type||''} ${a.process||''} ${a.cost||''}`).toLowerCase().includes(q.toLowerCase());
+    return dirOk && searchOk;
+  });
+  const accTabs = `<div class="filters" style="margin-bottom:14px"><span class="chip ${txAccFilter==='ALL'?'active':''}" data-txacc="ALL">전체 계좌</span>`+accNums.map(n=>`<span class="chip ${txAccFilter===n?'active':''}" data-txacc="${n}">${aliasOf(n)||n}</span>`).join("")+`</div>`;
+  const balRows = [...rowsData].sort((x,y)=>y.krw-x.krw).map(({a,krw})=>{
+    const changed = Math.round(krw)!==Math.round(a.krw);
+    return `<tr><td>${a.bank}</td><td>${drill("acct",a.num,a.num)}<div class="acc-alias">${aliasOf(a.num)||a.name}</div></td>
+      <td><span class="pill">${({CHECKING:"입출금",FUND:"펀드",FX:"외화"})[a.type]}</span></td>
+      <td class="num">${a.cur!=="KRW"?`${a.cur} ${a.fx.toLocaleString("ko-KR")}`:"—"}</td>
+      <td class="num">${KRW(krw)}${changed?`<div class="acc-alias">현재 ${compact(a.krw)}</div>`:""}</td></tr>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="kpis">
+      <div class="tile"><div class="label">입출금 예금</div><div class="value">${compact(byType.CHECKING)}</div></div>
+      <div class="tile"><div class="label">펀드</div><div class="value">${compact(byType.FUND)}</div></div>
+      <div class="tile"><div class="label">외화예금 (원화환산)</div><div class="value">${compact(byType.FX)}</div></div>
+      <div class="tile"><div class="label">대출 (부채)</div><div class="value" style="color:var(--critical)">${compact(loanSum)}</div></div>
+    </div>
+    <div class="kpis">
+      <div class="tile"><div class="label">이월 잔액</div><div class="value">${compact(opening)}</div><div class="delta flat">${scopeLabel} · ~${dateRange.start}</div></div>
+      <div class="tile"><div class="label">입금</div><div class="value" style="color:var(--good)">${compact(inSum)}</div><div class="delta flat">${scope.filter(t=>t.in).length}건</div></div>
+      <div class="tile"><div class="label">출금</div><div class="value" style="color:var(--critical)">${compact(outSum)}</div><div class="delta flat">${scope.filter(t=>t.out).length}건</div></div>
+      <div class="tile"><div class="label">기말 잔액</div><div class="value">${compact(closing)}</div><div class="delta flat">${scopeLabel} · ${end}</div></div>
+    </div>
+    <div class="panel"><h2>계좌 · 입출금 내역</h2><p class="desc">계좌 탭으로 계좌별 조회 · 거래처/계좌 클릭 시 상세 모달</p>${rangeNote()}
+      ${accTabs}
+      <div class="filters">
+        ${["ALL","IN","OUT","UNC"].map(f=>`<span class="chip ${txFilter===f?'active':''}" data-txf="${f}">${({ALL:"전체",IN:"입금",OUT:"출금",UNC:"미분류"})[f]}</span>`).join("")}
+        <span class="search"><input id="tx-search" placeholder="거래처·적요·계정·거래유형 검색" value="${txSearch}"></span>
+      </div>
+      ${txTableHTML(filtered)}</div>
+    <div class="panel"><h2>계좌별 잔액</h2><p class="desc">${isSnapshot?'최신 수집 시점(2026-07-02) 기준':`<b>${end}</b> 기준 추정(이후 거래 롤백)`} · 계좌 클릭 시 상세</p>
+      <table><thead><tr><th>은행</th><th>계좌</th><th>구분</th><th class="num">외화잔액</th><th class="num">잔액(KRW)</th></tr></thead><tbody>${balRows}</tbody></table>
+      <div class="foot-note">⚠️ 대출 ${compact(loanSum)}은 부채이며 자산 합계에서 제외됩니다.</div></div>`;
+  document.querySelectorAll("[data-txacc]").forEach(c=>c.onclick=()=>{txAccFilter=c.dataset.txacc; account();});
+  document.querySelectorAll("[data-txf]").forEach(c=>c.onclick=()=>{txFilter=c.dataset.txf; account();});
+  const s=document.getElementById("tx-search");
+  s.oninput=e=>{ txSearch=e.target.value; const pos=e.target.selectionStart; account(); const ns=document.getElementById("tx-search"); ns.focus(); ns.setSelectionRange(pos,pos); };
+}
+
+let txFilter="ALL", txSearch="", txAccFilter="ALL";
+
+let cardTab="usage", cuCardFilter="ALL";
+function cards(){
+  const cardsList = uniqueCards();
+  const tabs = `<div class="filters" style="margin-bottom:18px">
+      <span class="chip ${cardTab==='usage'?'active':''}" data-ctab="usage">이용내역</span>
+      <span class="chip ${cardTab==='billing'?'active':''}" data-ctab="billing">청구내역</span></div>`;
+  let head="", body="";
+  if (cardTab==="usage"){
+    const all = DATA.cardUsage.filter(c=>inRange(c.date));
+    const list = all.filter(c=> cuCardFilter==="ALL" || c.card===cuCardFilter);
+    const total = sumBy(list, c=>c.amount);
+    const chips = `<span class="chip ${cuCardFilter==='ALL'?'active':''}" data-cuf="ALL">전체</span>` +
+      cardsList.map(card=>`<span class="chip ${cuCardFilter===card?'active':''}" data-cuf="${card}">${holderOf(card)||card}</span>`).join("");
+    head = `<div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="tile"><div class="label">기간 내 이용 총액</div><div class="value">${compact(total)}</div><div class="delta flat">${list.length}건</div></div>
+      <div class="tile"><div class="label">이용 카드 수</div><div class="value">${cardsList.length}<span class="unit">개</span></div><div class="delta flat">사용자 매칭 ${cardsList.filter(c=>holderOf(c)).length}개 · 환경설정</div></div>
+      <div class="tile"><div class="label">미분류</div><div class="value">${list.filter(c=>!c.cat).length}<span class="unit">건</span></div></div></div>`;
+    body = `<div class="panel"><h2>카드 이용내역 (승인)</h2><p class="desc">사용자(카드)를 선택해 필터 · 카드 클릭 시 상세 모달 · 사용자 매칭은 환경설정에서</p>${rangeNote()}
+      <div class="filters">${chips}</div>${cardUsageTableHTML(page(list).shown)}${pageNote(list.length)}</div>`;
+  } else {
+    const list = DATA.cardBilling.filter(c=>inRange(c.payDate));
+    const total = sumBy(list, c=>c.amount);
+    head = `<div class="kpis" style="grid-template-columns:repeat(2,1fr)">
+      <div class="tile"><div class="label">기간 내 청구 총액</div><div class="value">${compact(total)}</div><div class="delta flat">${list.length}건 · 결제일 기준</div></div>
+      <div class="tile"><div class="label">어제(07-01) 청구</div><div class="value">${compact(0)}</div><div class="delta flat">해당 결제일 청구 없음</div></div></div>`;
+    body = `<div class="panel"><h2>카드 청구내역</h2><p class="desc">법인카드 · 결제일 기준 · 카드 클릭 시 상세 모달</p>${rangeNote()}${cardBillTableHTML(page(list).shown)}${pageNote(list.length)}
+      <div class="foot-note">ℹ️ 청구내역은 <b>결제일 기준</b>입니다. 개별 가맹점 사용은 이용내역 탭을 참고하세요.</div></div>`;
+  }
+  el.innerHTML = tabs + head + body;
+  document.querySelectorAll("[data-ctab]").forEach(c=>c.onclick=()=>{cardTab=c.dataset.ctab; cards();});
+  document.querySelectorAll("[data-cuf]").forEach(c=>c.onclick=()=>{cuCardFilter=c.dataset.cuf; cards();});
+}
+
+let taxFilter="ALL";
+function tax(){
+  const base = DATA.taxInvoices.filter(t=>inRange(t.date));
+  const list = base.filter(t=> taxFilter==="ALL" || t.type===taxFilter);
+  const salesSum = sumBy(base.filter(t=>t.type==="SALES"), t=>t.supply+t.vat);
+  const purchSum = sumBy(base.filter(t=>t.type==="PURCHASE"), t=>t.supply+t.vat);
+  el.innerHTML = `
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+      <div class="tile"><div class="label">매출 세금계산서</div><div class="value">${compact(salesSum)}</div><div class="delta up">${base.filter(t=>t.type==="SALES").length}건 발행</div></div>
+      <div class="tile"><div class="label">매입 세금계산서</div><div class="value">${compact(purchSum)}</div><div class="delta down">${base.filter(t=>t.type==="PURCHASE").length}건 수취</div></div>
+      <div class="tile"><div class="label">순액 (매출−매입)</div><div class="value">${compact(salesSum-purchSum)}</div></div>
+    </div>
+    <div class="panel"><h2>세금계산서 목록</h2><p class="desc">clobe 실데이터(2026-06-25~07-01 발췌) · 거래처를 클릭하면 해당 거래처 상세가 모달로 열립니다.</p>${rangeNote()}
+      <div class="filters">${["ALL","SALES","PURCHASE"].map(f=>`<span class="chip ${taxFilter===f?'active':''}" data-txf2="${f}">${({ALL:"전체",SALES:"매출",PURCHASE:"매입"})[f]}</span>`).join("")}</div>
+      ${taxTableHTML(page(list).shown)}${pageNote(list.length)}</div>`;
+  document.querySelectorAll("[data-txf2]").forEach(c=>c.onclick=()=>{taxFilter=c.dataset.txf2; tax();});
+}
+
+function manage(){
+  el.innerHTML = `
+    <p class="range-note">입력값은 브라우저에 자동 저장되며(localStorage), 모든 조회 화면과 모달에 즉시 반영됩니다.</p>
+    ${aliasPanel()}
+    ${holderPanel()}
+    ${partyPanel()}`;
+  wireMappingInputs();
+  wireParty();
+}
+
+/* ============================================================
+   ROUTING
+   ============================================================ */
+const VIEWS = {
+  overview:{title:"개요", fn:overview},
+  account:{title:"계좌 · 입출금", fn:account},
+  cards:{title:"카드 내역", fn:cards},
+  tax:{title:"세금계산서·매출", fn:tax},
+  manage:{title:"환경설정", fn:manage},
+};
+let currentView = "overview";
+function go(view){
+  currentView = view;
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active", n.dataset.view===view));
+  document.getElementById("view-title").textContent = VIEWS[view].title;
+  VIEWS[view].fn();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll(".nav-item").forEach(n=>n.onclick=()=>go(n.dataset.view));
+
+/* ============================================================
+   CHATBOT — 규칙 기반 자연어 조회
+   ============================================================ */
+const chatWin = document.getElementById("chat-win");
+const chatBody = document.getElementById("chat-body");
+const chatText = document.getElementById("chat-text");
+
+function parseChat(t){
+  let range=null, rangeLabel="";
+  const monthRange = (yr,m) => { const last=new Date(yr, m, 0).getDate(); const mm=String(m).padStart(2,"0"); return {start:`${yr}-${mm}-01`, end:`${yr}-${mm}-${String(last).padStart(2,"0")}`}; };
+  const yearRange  = (yr) => ({ start:`${yr}-01-01`, end: yr>=2026 ? fmt(TODAY) : `${yr}-12-31` });
+  const ym = t.match(/(\d{4})\s*년\s*(\d{1,2})\s*월/);
+  const yy = t.match(/(\d{4})\s*년/);
+  if (/최근\s*7\s*일|지난\s*7\s*일|일주일/.test(t)) { range=presetRange("7d"); rangeLabel="최근 7일"; }
+  else if (/최근\s*30\s*일/.test(t)) { range=presetRange("30d"); rangeLabel="최근 30일"; }
+  else if (/최근\s*90\s*일/.test(t)) { range=presetRange("90d"); rangeLabel="최근 90일"; }
+  else if (/어제|전일/.test(t)) { range={start:"2026-07-01",end:"2026-07-01"}; rangeLabel="어제(2026-07-01)"; }
+  else if (/오늘|금일/.test(t)) { range=presetRange("today"); rangeLabel="오늘(2026-07-02)"; }
+  else if (/이번\s*달|당월|금월/.test(t)) { range=presetRange("mtd"); rangeLabel="이번 달(7월)"; }
+  else if (/지난\s*달|전월|저번\s*달/.test(t)) { range=monthRange(2026,6); rangeLabel="지난달(6월)"; }
+  else if (ym) { range=monthRange(+ym[1], +ym[2]); rangeLabel=`${+ym[1]}년 ${+ym[2]}월`; }
+  else if (yy) { range=yearRange(+yy[1]); rangeLabel=`${+yy[1]}년`; }
+  else if (/올해|금년/.test(t)) { range=yearRange(2026); rangeLabel="올해(2026년)"; }
+  else if (/작년|지난해/.test(t)) { range=yearRange(2025); rangeLabel="작년(2025년)"; }
+  else { const m=t.match(/(\d{1,2})\s*월/); if(m){ range=monthRange(2026,+m[1]); rangeLabel=`${+m[1]}월`; } }
+  if (!range){ range={start:dateRange.start,end:dateRange.end}; rangeLabel=`${range.start} ~ ${range.end}`; }
+
+  let view=null;
+  if (/카드.*(이용|사용|승인)|이용\s*내역/.test(t)) view="cardusage";
+  else if (/카드.*청구|청구\s*내역/.test(t)) view="cardbilling";
+  else if (/세금계산서|계산서|매출/.test(t)) view="tax";
+  else if (/(잔액|계좌)/.test(t) && !/입출금|입금|출금|거래|이체/.test(t)) view="balance";
+  else if (/입출금|입금|출금|거래|이체|내역/.test(t)) view="transactions";
+
+  let dir="ALL";
+  if (/출금|지출|나간|나감|송금|이체/.test(t) && !/입금/.test(t)) dir="OUT";
+  else if (/입금|들어온|수금|매출\s*입금/.test(t) && !/출금/.test(t)) dir="IN";
+
+  let taxType="ALL";
+  if (view==="tax"){ if(/매출/.test(t)) taxType="SALES"; else if(/매입/.test(t)) taxType="PURCHASE"; }
+
+  return { view, dir, taxType, range, rangeLabel };
+}
+
+function miniTable(rows){ // rows: [[left, right], ...]
+  return `<table class="chat-mini">${rows.map(r=>`<tr><td>${r[0]}</td><td class="n">${r[1]}</td></tr>`).join("")}</table>`;
+}
+
+function chatAnswer(q){
+  const inR = d => { const x=d.slice(0,10); return x>=q.range.start && x<=q.range.end; };
+  if (!q.view) return { text:"무엇을 조회할지 이해하지 못했어요. 예를 들어 이렇게 물어보세요.", suggest:true };
+
+  if (q.view==="balance"){
+    const top=[...DATA.accounts].sort((a,b)=>b.krw-a.krw).slice(0,5);
+    return { text:`현재 총 가용 잔액은 <b>${compact(availableCash)}</b>입니다. (예금·펀드·외화, 대출 제외)`,
+      html: miniTable(top.map(a=>[`${aliasOf(a.num)||a.name} <span style="color:var(--text-muted)">${a.bank}</span>`, KRW(a.krw)])),
+      action:{view:"account"} };
+  }
+  if (q.view==="transactions"){
+    let list=DATA.transactions.filter(t=>inR(t.date));
+    if (q.dir==="OUT") list=list.filter(t=>t.out);
+    else if (q.dir==="IN") list=list.filter(t=>t.in);
+    const inC=list.filter(t=>t.in), outC=list.filter(t=>t.out);
+    const inSum=sumBy(inC,t=>t.in), outSum=sumBy(outC,t=>t.out);
+    const dw = q.dir==="OUT"?"출금":q.dir==="IN"?"입금":"입출금";
+    if (!list.length) return { text:`${q.rangeLabel} ${dw} 내역이 없습니다.`, action:{view:"account",range:q.range,dir:q.dir} };
+    const rows=list.slice(0,6).map(t=>[`${t.name} <span style="color:var(--text-muted)">${t.date.slice(5,10)}</span>`, (t.in?`<span style="color:var(--good)">+${KRW(t.in)}</span>`:`<span style="color:var(--critical)">−${KRW(t.out)}</span>`)]);
+    let text=`${q.rangeLabel} ${dw} 결과입니다.<br>· 입금 ${inC.length}건 <b>${KRW(inSum)}</b><br>· 출금 ${outC.length}건 <b>${KRW(outSum)}</b><br>· 순증감 <b>${(inSum-outSum>=0?"+":"")+KRW(inSum-outSum)}</b>`;
+    if (list.length>6) text+=`<br><span style="color:var(--text-muted)">상위 6건 표시 · 전체 ${list.length}건</span>`;
+    return { text, html:miniTable(rows), action:{view:"account",range:q.range,dir:q.dir} };
+  }
+  if (q.view==="cardusage"){
+    const list=DATA.cardUsage.filter(c=>inR(c.date));
+    if (!list.length) return { text:`${q.rangeLabel} 카드 이용내역이 없습니다.`, action:{view:"cards",cardTab:"usage",range:q.range} };
+    const total=sumBy(list,c=>c.amount);
+    const rows=list.slice(0,6).map(c=>[`${c.merchant} <span style="color:var(--text-muted)">${holderOf(c.card)||c.card}</span>`, KRW(c.amount)]);
+    let text=`${q.rangeLabel} 카드 이용내역 <b>${list.length}건</b>, 합계 <b>${KRW(total)}</b>입니다.`;
+    if (list.length>6) text+=`<br><span style="color:var(--text-muted)">상위 6건 표시</span>`;
+    return { text, html:miniTable(rows), action:{view:"cards",cardTab:"usage",range:q.range} };
+  }
+  if (q.view==="cardbilling"){
+    const list=DATA.cardBilling.filter(c=>inR(c.payDate));
+    if (!list.length) return { text:`${q.rangeLabel} 결제일 기준 카드 청구내역이 없습니다.`, action:{view:"cards",cardTab:"billing",range:q.range} };
+    const total=sumBy(list,c=>c.amount);
+    return { text:`${q.rangeLabel} 카드 청구 <b>${list.length}건</b>, 합계 <b>${KRW(total)}</b>입니다.`,
+      html:miniTable(list.map(c=>[`${c.merchant}`, KRW(c.amount)])), action:{view:"cards",cardTab:"billing",range:q.range} };
+  }
+  if (q.view==="tax"){
+    let list=DATA.taxInvoices.filter(t=>inR(t.date));
+    if (q.taxType!=="ALL") list=list.filter(t=>t.type===q.taxType);
+    if (!list.length) return { text:`${q.rangeLabel} 세금계산서가 없습니다.`, action:{view:"tax",range:q.range,taxType:q.taxType} };
+    const sales=sumBy(list.filter(t=>t.type==="SALES"),t=>t.supply+t.vat);
+    const purch=sumBy(list.filter(t=>t.type==="PURCHASE"),t=>t.supply+t.vat);
+    return { text:`${q.rangeLabel} 세금계산서입니다.<br>· 매출 <b>${KRW(sales)}</b><br>· 매입 <b>${KRW(purch)}</b><br>· 순액 <b>${KRW(sales-purch)}</b>`,
+      html:miniTable(list.slice(0,6).map(t=>[`${t.partner} <span style="color:var(--text-muted)">${t.type==='SALES'?'매출':'매입'}</span>`, KRW(t.supply+t.vat)])),
+      action:{view:"tax",range:q.range,taxType:q.taxType} };
+  }
+}
+
+const SUGGESTIONS = ["어제 입출금 내역 알려줘","이번 달 카드 이용내역","6월 매출","계좌 잔액","최근 7일 출금"];
+function addUser(text){
+  const d=document.createElement("div"); d.className="msg user"; d.textContent=text;
+  chatBody.appendChild(d); chatBody.scrollTop=chatBody.scrollHeight;
+}
+function addBot(res){
+  const d=document.createElement("div"); d.className="msg bot";
+  let html=res.text||"";
+  if (res.html) html+=res.html;
+  if (res.suggest) html+=`<div class="suggest">${SUGGESTIONS.map(s=>`<span class="chip" data-sg="${s}">${s}</span>`).join("")}</div>`;
+  if (res.action) html+=`<div class="act"><button>화면에서 자세히 보기 →</button></div>`;
+  d.innerHTML=html;
+  chatBody.appendChild(d);
+  if (res.action){ const b=d.querySelector(".act button"); if(b) b.onclick=()=>applyChatAction(res.action); }
+  d.querySelectorAll("[data-sg]").forEach(c=>c.onclick=()=>submitChat(c.dataset.sg));
+  chatBody.scrollTop=chatBody.scrollHeight;
+}
+function applyChatAction(a){
+  if (a.range){ dateRange={preset:"custom", start:a.range.start, end:a.range.end}; }
+  if (a.view==="account"){ txFilter=a.dir||"ALL"; txSearch=""; txAccFilter="ALL"; }
+  if (a.view==="cards"){ cardTab=a.cardTab||"usage"; cuCardFilter="ALL"; }
+  if (a.view==="tax"){ taxFilter=a.taxType||"ALL"; }
+  renderDateControl(); updateBadges(); go(a.view);
+}
+function submitChat(text){
+  const t=(text||chatText.value).trim(); if(!t) return;
+  chatText.value="";
+  addUser(t);
+  const res=chatAnswer(parseChat(t));
+  setTimeout(()=>addBot(res), 120);
+}
+document.getElementById("chat-fab").onclick=()=>{
+  chatWin.classList.toggle("open");
+  if (chatWin.classList.contains("open")){
+    if (!chatBody.childElementCount) addBot({text:"안녕하세요! 재무 데이터를 자연어로 조회해 드립니다. 이렇게 물어보세요.", suggest:true});
+    chatText.focus();
+  }
+};
+document.getElementById("chat-close").onclick=()=>chatWin.classList.remove("open");
+document.getElementById("chat-send").onclick=()=>submitChat();
+chatText.addEventListener("keydown", e=>{ if(e.key==="Enter") submitChat(); });
+
+renderDateControl();
+updateBadges();
+go("overview");
+</script>
+</body>
+</html>
