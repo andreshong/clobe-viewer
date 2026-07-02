@@ -110,6 +110,23 @@ async function loadSyncState(){
   return data?.last_synced_at || null;
 }
 
+/* ---------- 페이지네이션 헬퍼 ----------
+   PostgREST는 요청당 최대 1000행만 반환한다(.limit()로도 못 넘김). buildQuery는
+   매 페이지마다 새 쿼리를 만들어 반환하는 팩토리 — .range()로 전부 순회해서
+   합계·목록이 기간 전체를 반영하도록 한다. 안전상 최대 60,000행에서 중단. */
+const PAGE_SIZE = 1000, MAX_ROWS = 60000;
+async function fetchAllRows(buildQuery){
+  let from = 0, all = [];
+  while (from < MAX_ROWS) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    all = all.concat(data || []);
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return all;
+}
+
 /* ---------- 조회 함수 (기존 DATA.* 배열과 동일한 shape로 반환) ---------- */
 
 async function fetchAccounts(){
@@ -131,11 +148,10 @@ async function fetchLoans(){
 }
 
 async function fetchTransactions(range){
-  const { data, error } = await supabaseClient.from("transactions").select("*")
+  const data = await fetchAllRows(()=>supabaseClient.from("transactions").select("*")
     .gte("txn_at", `${range.start}T00:00:00.000Z`).lte("txn_at", `${range.end}T23:59:59.999Z`)
-    .order("txn_at", { ascending:false }).limit(2000);
-  if (error) throw error;
-  return (data||[]).map(t=>({
+    .order("txn_at", { ascending:false }));
+  return data.map(t=>({
     date: isoToDisplayDateTime(t.txn_at), name: t.counterparty||"", desc: t.description||"",
     out: t.out_amount||0, in: t.in_amount||0, cat: t.category||null,
     acc: `${t.bank_name||""} ${t.account_number||""}`.trim(),
@@ -143,27 +159,24 @@ async function fetchTransactions(range){
 }
 
 async function fetchCardUsage(range){
-  const { data, error } = await supabaseClient.from("card_usage_view").select("*")
+  const data = await fetchAllRows(()=>supabaseClient.from("card_usage_view").select("*")
     .gte("used_date", range.start).lte("used_date", range.end)
-    .order("used_date", { ascending:false }).limit(2000);
-  if (error) throw error;
-  return (data||[]).map(c=>({ date: c.used_date, merchant: c.merchant||"", card: c.card_no, amount: c.payment_amount, cat: c.category||null }));
+    .order("used_date", { ascending:false }));
+  return data.map(c=>({ date: c.used_date, merchant: c.merchant||"", card: c.card_no, amount: c.payment_amount, cat: c.category||null }));
 }
 
 async function fetchCardBilling(range){
-  const { data, error } = await supabaseClient.from("card_statement_view").select("*")
+  const data = await fetchAllRows(()=>supabaseClient.from("card_statement_view").select("*")
     .gte("payment_date", range.start).lte("payment_date", range.end)
-    .order("payment_date", { ascending:false });
-  if (error) throw error;
-  return (data||[]).map(c=>({ payDate: c.payment_date, merchant: c.category||"미분류", card: c.card_no, amount: c.total_amount_krw, cat: c.category||null }));
+    .order("payment_date", { ascending:false }));
+  return data.map(c=>({ payDate: c.payment_date, merchant: c.category||"미분류", card: c.card_no, amount: c.total_amount_krw, cat: c.category||null }));
 }
 
 async function fetchTaxInvoices(range){
-  const { data, error } = await supabaseClient.from("tax_invoices").select("*")
+  const data = await fetchAllRows(()=>supabaseClient.from("tax_invoices").select("*")
     .gte("issue_date", range.start).lte("issue_date", range.end)
-    .order("issue_date", { ascending:false }).limit(2000);
-  if (error) throw error;
-  return (data||[]).map(t=>({ date: t.issue_date, partner: t.partner_name, regNo: t.partner_reg_no, type: t.type, supply: t.supply_value, vat: t.tax_amount }));
+    .order("issue_date", { ascending:false }));
+  return data.map(t=>({ date: t.issue_date, partner: t.partner_name, regNo: t.partner_reg_no, type: t.type, supply: t.supply_value, vat: t.tax_amount }));
 }
 
 // clobe의 get_monthly_revenue(카드/마켓플레이스/배달/PG 정산매출)는 이 회사(B2B

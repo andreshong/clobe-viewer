@@ -67,6 +67,9 @@
 
   .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
   .panel h2 { font-size: 15px; margin: 0 0 4px; }
+  .panel h2.collapsible { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; }
+  .panel h2.collapsible .caret { font-size: 12px; color: var(--text-muted); }
+  .panel h2.collapsible:hover { color: var(--series-1); }
   .panel .desc { font-size: 12.5px; color: var(--text-muted); margin: 0 0 16px; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   @media (max-width: 1080px){ .grid-2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2,1fr);} }
@@ -267,7 +270,7 @@ function partyTags(name){
 }
 const emptyBox = (msg="관련 내역이 없습니다") => `<div class="empty"><div class="big">내역 없음</div>${msg}</div>`;
 const rangeNote = () => `<div class="range-note">조회 기간: ${dateRange.start} ~ ${dateRange.end}</div>`;
-const capNote = (list, cap=2000) => list.length>=cap ? `<div class="range-note" style="color:var(--warning)">⚠ 결과가 많아 최신 ${cap}건만 표시됩니다 — 기간을 좁혀보세요.</div>` : "";
+const capNote = (list, cap=5000) => list.length>=cap ? `<div class="range-note" style="color:var(--warning)">⚠ ${list.length.toLocaleString()}건 — 표시가 느릴 수 있습니다. 기간을 좁히면 빨라집니다.</div>` : "";
 const loadingHTML = () => `<div class="empty"><div class="big">불러오는 중…</div></div>`;
 const errorHTML = err => `<div class="empty"><div class="big" style="color:var(--critical)">데이터를 불러오지 못했습니다</div>${err&&err.message?err.message:""}<div style="margin-top:12px"><button class="chip" onclick="VIEWS[currentView].fn()">다시 시도</button></div></div>`;
 
@@ -403,8 +406,9 @@ function holderTable(cardsList, usageInRange){
   return `<table class="party-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 function holderPanel(cardsList, usageInRange){
-  return `<div class="panel"><h2>카드 사용자 매칭</h2><p class="desc">카드 번호에 사용자(소유자) 이름을 입력하면 모든 조회에 함께 표시·필터됩니다. 헤더를 클릭해 정렬할 수 있습니다. 자동 저장.</p>
-    <div id="holder-wrap">${holderTable(cardsList, usageInRange)}</div></div>`;
+  return `<div class="panel"><h2 class="collapsible" data-collapse="holder"><span class="caret">▾</span> 카드 사용자 매칭</h2>
+    <div class="collapse-body" data-body="holder"><p class="desc">카드 번호에 사용자(소유자) 이름을 입력하면 모든 조회에 함께 표시·필터됩니다. 헤더를 클릭해 정렬할 수 있습니다. 자동 저장.</p>
+    <div id="holder-wrap">${holderTable(cardsList, usageInRange)}</div></div></div>`;
 }
 function wireHolder(cardsList, usageInRange){
   const wrap = document.getElementById("holder-wrap");
@@ -439,8 +443,9 @@ function aliasTable(allAccounts){
   return `<table class="party-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 function aliasPanel(allAccounts){
-  return `<div class="panel"><h2>계좌 별명 매칭</h2><p class="desc">계좌번호에 별명을 입력하면 모든 조회·모달에 함께 표시됩니다. 헤더를 클릭해 정렬할 수 있습니다. 자동 저장.</p>
-    <div id="alias-wrap">${aliasTable(allAccounts)}</div></div>`;
+  return `<div class="panel"><h2 class="collapsible" data-collapse="alias"><span class="caret">▾</span> 계좌 별명 매칭</h2>
+    <div class="collapse-body" data-body="alias"><p class="desc">계좌번호에 별명을 입력하면 모든 조회·모달에 함께 표시됩니다. 헤더를 클릭해 정렬할 수 있습니다. 자동 저장.</p>
+    <div id="alias-wrap">${aliasTable(allAccounts)}</div></div></div>`;
 }
 function wireAlias(allAccounts){
   const wrap = document.getElementById("alias-wrap");
@@ -478,9 +483,10 @@ function partyTable(){
   return `<table class="party-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 function partyPanel(){
-  return `<div class="panel"><h2>거래처 등록</h2><p class="desc">거래처별 사업자등록번호·대표자·주소·거래유형·공정·비용유형을 입력합니다. 헤더를 클릭해 정렬하거나 검색으로 좁힐 수 있습니다. 자동 저장.</p>
+  return `<div class="panel"><h2 class="collapsible" data-collapse="party"><span class="caret">▾</span> 거래처 등록</h2>
+    <div class="collapse-body" data-body="party"><p class="desc">거래처별 사업자등록번호·대표자·주소·거래유형·공정·비용유형을 입력합니다. 헤더를 클릭해 정렬하거나 검색으로 좁힐 수 있습니다. 자동 저장.</p>
     <div class="filters"><span class="search"><input id="party-search" placeholder="거래처·사업자번호·대표자·주소 검색" value="${partySearch}" autocomplete="off"></span><span class="pill">${ALL_PARTIES.length}개 거래처</span></div>
-    <div id="party-wrap">${partyTable()}</div></div>`;
+    <div id="party-wrap">${partyTable()}</div></div></div>`;
 }
 function wireParty(){
   const wrap = document.getElementById("party-wrap");
@@ -693,22 +699,58 @@ function matchTxForInvoice(inv, txs){
     return { t, amtOk, nameOk, days };
   }).filter(m=>m.amtOk).sort((a,b)=> (b.nameOk-a.nameOk) || (a.days-b.days));
 }
-function reconResultHTML(kind, item, matches){
-  if (!matches.length){
-    return `<div class="foot-note" style="color:var(--critical)">⚠ 금액이 일치하는 ${kind==="tx"?"세금계산서":"입출금 내역"}를 현재 조회 기간 내에서 찾지 못했습니다. 기간을 넓혀보세요.</div>`;
-  }
-  const best = matches[0];
-  const rows = matches.slice(0,5).map(m=>{
-    if (kind==="tx") return [`${m.inv.partner} <span style="color:var(--text-muted)">${m.inv.date}</span>`, KRW(m.inv.supply+m.inv.vat)];
-    return [`${m.t.name} <span style="color:var(--text-muted)">${m.t.date.slice(0,10)}</span>`, KRW(m.t.in||m.t.out)];
-  });
-  const okBadge = best.nameOk
+const reconVerdict = matches => {
+  if (!matches.length) return `<span class="pill" style="background:rgba(208,59,59,0.15);color:var(--critical)">✗ 매칭 없음</span>`;
+  return matches[0].nameOk
     ? `<span class="pill" style="background:rgba(27,175,122,0.18);color:var(--good)">✓ 거래처·금액 일치</span>`
-    : `<span class="pill unclassified">금액은 일치·거래처명 확인 필요</span>`;
-  return `<div style="margin-top:8px">${okBadge}</div>${miniTable(rows)}`;
+    : `<span class="pill unclassified">금액 일치 · 거래처명 확인 필요</span>`;
+};
+// 클릭한 항목과 매칭되는 반대편(세금계산서↔입출금)을 모달로 비교 표시.
+function openReconModal(kind, item, matches){
+  let title, sub, srcHtml, matchTitle, verdictLine;
+  if (kind==="tx"){
+    const amt = item.in || item.out, dir = item.in ? "입금(매출)" : "출금(매입)";
+    title = `${item.name || "(무명)"} · ${item.in?KRW(item.in):"−"+KRW(item.out)}`;
+    sub = `은행 ${dir} · ${item.date}`;
+    srcHtml = `<h4>클릭한 입출금</h4>${miniTable([
+      ["거래처", item.name||"—"], ["적요", item.desc||"—"], ["일시", item.date],
+      ["구분", dir], ["금액", KRW(amt)]
+    ])}`;
+    matchTitle = item.in ? "매칭되는 매출 세금계산서" : "매칭되는 매입 세금계산서";
+    verdictLine = item.in
+      ? "이 입금이 발행한 매출 세금계산서와 금액·거래처가 맞는지(정상 수금) 확인합니다."
+      : "이 출금이 수취한 매입 세금계산서와 금액·거래처가 맞는지(정상 지급) 확인합니다.";
+  } else {
+    const total = item.supply + item.vat, t = item.type==="SALES" ? "매출(발행)" : "매입(수취)";
+    title = `${item.partner} · ${KRW(total)}`;
+    sub = `세금계산서 ${t} · ${item.date}`;
+    srcHtml = `<h4>클릭한 세금계산서</h4>${miniTable([
+      ["거래처", item.partner], ["사업자번호", item.regNo||"—"], ["작성일", item.date],
+      ["구분", t], ["공급가액", KRW(item.supply)], ["부가세", KRW(item.vat)], ["합계", KRW(total)]
+    ])}`;
+    matchTitle = item.type==="SALES" ? "매칭되는 입금 내역" : "매칭되는 출금 내역";
+    verdictLine = item.type==="SALES"
+      ? "이 매출 세금계산서 금액이 실제로 입금되었는지(미수금 여부) 확인합니다."
+      : "이 매입 세금계산서 금액이 실제로 지급되었는지(미지급금 여부) 확인합니다.";
+  }
+  const matchRows = matches.slice(0,10).map(m => kind==="tx"
+    ? [`${m.inv.partner} <span style="color:var(--text-muted)">${m.inv.date}${m.nameOk?' · 거래처✓':''}</span>`, KRW(m.inv.supply+m.inv.vat)]
+    : [`${m.t.name} <span style="color:var(--text-muted)">${m.t.date}${m.nameOk?' · 거래처✓':''}</span>`, KRW(m.t.in||m.t.out)]);
+  const matchHtml = matches.length
+    ? miniTable(matchRows)
+    : `<div class="foot-note" style="color:var(--critical)">⚠ 금액이 일치하는 항목을 현재 조회 기간 안에서 찾지 못했습니다. 기간을 넓혀보세요.</div>`;
+  modalEl.innerHTML = `<div class="modal"><div class="modal-head"><div><h3>${title}</h3><div class="sub">${sub}</div></div><button class="modal-close" id="modal-x">✕</button></div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px">${reconVerdict(matches)}</div>
+      <p class="desc">${verdictLine}</p>
+      ${srcHtml}
+      <h4 style="margin-top:18px">${matchTitle} (${matches.length}건)</h4>${matchHtml}
+    </div></div>`;
+  modalEl.classList.add("open");
+  modalEl.onclick = e => { if (e.target===modalEl) closeModal(); };
+  document.getElementById("modal-x").onclick = closeModal;
 }
 
-let taxReconSel = null; // {kind:"tx"|"inv", idx:number}
 async function tax(){
   el.innerHTML = loadingHTML();
   try {
@@ -727,20 +769,13 @@ async function tax(){
       ? `<table><thead><tr><th>작성일</th><th>거래처</th><th>구분</th><th class="num">합계</th></tr></thead><tbody>${invRows}</tbody></table>`
       : emptyBox("세금계산서가 없습니다.");
 
-    let reconHTML = `<p class="desc">왼쪽 입출금 또는 오른쪽 세금계산서 행을 클릭하면, 금액·거래처가 일치하는 반대편 항목을 찾아 발급/수취가 정확한지 확인합니다.</p>`;
-    if (taxReconSel){
-      const { kind, idx } = taxReconSel;
-      if (kind==="tx" && bankTx[idx]) reconHTML += reconResultHTML("tx", bankTx[idx], matchInvoicesForTx(bankTx[idx], base));
-      else if (kind==="inv" && list[idx]) reconHTML += reconResultHTML("inv", list[idx], matchTxForInvoice(list[idx], bankTx));
-    }
-
     el.innerHTML = `
       <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
         <div class="tile"><div class="label">매출 세금계산서</div><div class="value">${compact(salesSum)}</div><div class="delta up">${base.filter(t=>t.type==="SALES").length}건 발행</div></div>
         <div class="tile"><div class="label">매입 세금계산서</div><div class="value">${compact(purchSum)}</div><div class="delta down">${base.filter(t=>t.type==="PURCHASE").length}건 수취</div></div>
         <div class="tile"><div class="label">순액 (매출−매입)</div><div class="value">${compact(salesSum-purchSum)}</div></div>
       </div>
-      <div class="panel"><h2>입출금 · 세금계산서 대사</h2>${rangeNote()}${reconHTML}</div>
+      <div class="panel" style="padding:14px 20px"><p class="desc" style="margin:0">${rangeNote()} 아래 <b>은행 입출금</b> 또는 <b>세금계산서</b> 행을 클릭하면, 금액이 일치하는 반대편 항목을 찾아 <b>발급·수취가 실제 입출금과 맞는지</b> 모달로 대사합니다.</p></div>
       <div class="grid-2">
         <div class="panel"><h2>은행 입출금</h2>${capNote(bankTx)}${txPanelBody}</div>
         <div class="panel"><h2>세금계산서 목록</h2>${capNote(base)}
@@ -748,11 +783,10 @@ async function tax(){
           ${invPanelBody}</div>
       </div>`;
     document.querySelectorAll("[data-txf2]").forEach(c=>c.onclick=async ()=>{taxFilter=c.dataset.txf2; await tax();});
-    document.querySelectorAll("[data-recon]").forEach(row=>row.onclick=async ()=>{
-      const [kind, idxStr] = row.dataset.recon.split("|");
-      taxReconSel = { kind, idx: +idxStr };
-      await tax();
-      document.querySelector(".panel h2")?.scrollIntoView({behavior:"smooth", block:"nearest"});
+    document.querySelectorAll("[data-recon]").forEach(row=>row.onclick=()=>{
+      const [kind, idxStr] = row.dataset.recon.split("|"), idx=+idxStr;
+      if (kind==="tx") openReconModal("tx", bankTx[idx], matchInvoicesForTx(bankTx[idx], base));
+      else openReconModal("inv", list[idx], matchTxForInvoice(list[idx], bankTx));
     });
   } catch (err) {
     el.innerHTML = errorHTML(err);
@@ -774,6 +808,13 @@ async function manage(){
     wireAlias(accounts);
     wireHolder(cardsList, usageInRange);
     wireParty();
+    document.querySelectorAll("[data-collapse]").forEach(h=>h.onclick=()=>{
+      const body = document.querySelector(`[data-body="${h.dataset.collapse}"]`);
+      if (!body) return;
+      const collapsed = body.style.display === "none";
+      body.style.display = collapsed ? "" : "none";
+      const caret = h.querySelector(".caret"); if (caret) caret.textContent = collapsed ? "▾" : "▸";
+    });
   } catch (err) {
     el.innerHTML = errorHTML(err);
   }
