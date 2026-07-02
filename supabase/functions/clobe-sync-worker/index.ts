@@ -72,6 +72,7 @@ Deno.serve(async () => {
   try {
     const n = await syncBankAccounts(db, accessToken, sessionId, CLOBE_COMPANY_ID);
     (summary.singleton as any).bank_accounts = n;
+    await db.from("clobe_sync_state").update({ phase: "incremental" }).eq("data_type", "bank_accounts");
     await markSyncStateSuccess(db, "bank_accounts", null);
   } catch (e) {
     (summary.singleton as any).bank_accounts = { error: String(e) };

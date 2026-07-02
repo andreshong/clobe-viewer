@@ -4,3 +4,5 @@
 .env.local
 supabase/.temp
 node_modules
+
+.vercel

@@ -7,9 +7,13 @@ const MAX_PAGES = 50; // safety cap: 50 * 100 = 5000 rows per chunk call, far ab
 
 async function upsertBatch(db: any, table: string, rows: any[]): Promise<number> {
   if (rows.length === 0) return 0;
-  const { error } = await db.from(table).upsert(rows, { onConflict: "dedup_key" });
+  // Postgres rejects an upsert batch that hits the same ON CONFLICT target twice
+  // ("cannot affect row a second time") -- clobe occasionally returns the same
+  // record twice within one page, so de-dupe defensively before upserting.
+  const deduped = Array.from(new Map(rows.map((r) => [r.dedup_key, r])).values());
+  const { error } = await db.from(table).upsert(deduped, { onConflict: "dedup_key" });
   if (error) throw new Error(`upsert ${table} 실패: ${error.message}`);
-  return rows.length;
+  return deduped.length;
 }
 
 async function call(accessToken: string, sessionId: string | undefined, tool: string, input: Record<string, unknown>) {
