@@ -975,6 +975,8 @@ async function showApp(session){
   renderDateControl();
   await updateBadges();
   await go("overview");
+  // 최초 로그인(휴대폰 4자리)이면 비밀번호 설정을 강제.
+  if (LAST_LOGIN.mustChange) openPwModal(true);
 }
 function showLoginScreen(){
   document.querySelector(".app").style.display = "none";
@@ -999,34 +1001,46 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
   }
 });
 document.getElementById("logout-btn").onclick = () => signOut();
-document.getElementById("pw-btn").onclick = () => {
-  const session = supabaseClient.auth.getSession().then(({data})=>{
-    const name = data.session?.user?.user_metadata?.clobe_name || "";
-    modalEl.innerHTML = `<div class="modal" style="max-width:360px"><div class="modal-head"><div><h3>비밀번호 변경</h3><div class="sub">${name} · 변경 시 제안활동·인사평가·의견수렴에도 동일 적용됩니다</div></div><button class="modal-close" id="modal-x">✕</button></div>
-      <div class="modal-body">
-        <input type="password" id="pw-cur" placeholder="현재 비밀번호(최초: 휴대폰 4자리)" autocomplete="current-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">
-        <input type="password" id="pw-new" placeholder="새 비밀번호(4자 이상)" autocomplete="new-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">
-        <input type="password" id="pw-new2" placeholder="새 비밀번호 확인" autocomplete="new-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">
-        <button id="pw-submit" style="width:100%;border:none;background:var(--series-1);color:#fff;border-radius:9px;padding:11px;font-family:inherit;font-size:13.5px;cursor:pointer">변경</button>
-        <p class="err" id="pw-err" style="display:none;font-size:12.5px;margin-top:10px"></p>
-      </div></div>`;
-    modalEl.classList.add("open");
-    document.getElementById("modal-x").onclick = closeModal;
-    document.getElementById("pw-submit").onclick = async () => {
-      const cur = document.getElementById("pw-cur").value;
-      const n1 = document.getElementById("pw-new").value;
-      const n2 = document.getElementById("pw-new2").value;
-      const errEl = document.getElementById("pw-err");
-      const show = (msg, ok) => { errEl.textContent = msg; errEl.style.color = ok?"var(--good)":"var(--critical)"; errEl.style.display = "block"; };
-      if (n1 !== n2) return show("새 비밀번호가 일치하지 않습니다.", false);
-      const btn = document.getElementById("pw-submit"); btn.disabled = true;
-      const { ok, error } = await changePassword(name, cur, n1);
-      btn.disabled = false;
-      if (ok) { show("변경되었습니다. 4개 앱 모두 새 비밀번호로 로그인하세요.", true); setTimeout(closeModal, 1800); }
-      else show(error, false);
-    };
-  });
-};
+// 비밀번호 변경 모달. forced=true(최초 로그인)면 닫기 불가 + 현재 비밀번호는
+// 방금 로그인에 쓴 값(LAST_LOGIN)을 자동 사용하고 새 비밀번호만 입력받는다.
+async function openPwModal(forced){
+  const { data } = await supabaseClient.auth.getSession();
+  const name = data.session?.user?.user_metadata?.clobe_name || LAST_LOGIN.name || "";
+  const title = forced ? "최초 로그인 · 비밀번호 설정" : "비밀번호 변경";
+  const sub = forced ? "휴대폰 4자리 대신 사용할 새 비밀번호를 설정하세요. (제안활동·인사평가·의견수렴에도 동일 적용)"
+                     : `${name} · 변경 시 제안활동·인사평가·의견수렴에도 동일 적용됩니다`;
+  const curField = forced ? "" : `<input type="password" id="pw-cur" placeholder="현재 비밀번호(최초: 휴대폰 4자리)" autocomplete="current-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">`;
+  const closeBtn = forced ? "" : `<button class="modal-close" id="modal-x">✕</button>`;
+  modalEl.innerHTML = `<div class="modal" style="max-width:360px"><div class="modal-head"><div><h3>${title}</h3><div class="sub">${sub}</div></div>${closeBtn}</div>
+    <div class="modal-body">
+      ${curField}
+      <input type="password" id="pw-new" placeholder="새 비밀번호(4자 이상)" autocomplete="new-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">
+      <input type="password" id="pw-new2" placeholder="새 비밀번호 확인" autocomplete="new-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">
+      <button id="pw-submit" style="width:100%;border:none;background:var(--series-1);color:#fff;border-radius:9px;padding:11px;font-family:inherit;font-size:13.5px;cursor:pointer">${forced?"설정":"변경"}</button>
+      <p class="err" id="pw-err" style="display:none;font-size:12.5px;margin-top:10px"></p>
+    </div></div>`;
+  modalEl.classList.add("open");
+  if (!forced){ modalEl.onclick = e => { if (e.target===modalEl) closeModal(); }; document.getElementById("modal-x").onclick = closeModal; }
+  else { modalEl.onclick = null; } // 강제 모드: 배경 클릭·닫기 버튼 없음
+  document.getElementById("pw-submit").onclick = async () => {
+    const cur = forced ? LAST_LOGIN.password : document.getElementById("pw-cur").value;
+    const n1 = document.getElementById("pw-new").value;
+    const n2 = document.getElementById("pw-new2").value;
+    const errEl = document.getElementById("pw-err");
+    const show = (msg, ok) => { errEl.textContent = msg; errEl.style.color = ok?"var(--good)":"var(--critical)"; errEl.style.display = "block"; };
+    if ((n1||"").length < 4) return show("새 비밀번호는 4자 이상이어야 합니다.", false);
+    if (n1 !== n2) return show("새 비밀번호가 일치하지 않습니다.", false);
+    const btn = document.getElementById("pw-submit"); btn.disabled = true;
+    const { ok, error } = await changePassword(name, cur, n1);
+    btn.disabled = false;
+    if (ok) {
+      LAST_LOGIN.mustChange = false; LAST_LOGIN.password = n1;
+      show("설정되었습니다. 4개 앱 모두 새 비밀번호로 로그인하세요.", true);
+      setTimeout(()=>{ modalEl.onclick = e => { if (e.target===modalEl) closeModal(); }; closeModal(); }, 1600);
+    } else show(error, false);
+  };
+}
+document.getElementById("pw-btn").onclick = () => openPwModal(false);
 </script>
 </body>
 </html>

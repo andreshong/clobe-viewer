@@ -24,6 +24,9 @@ const isoToDisplayDateTime = iso => iso ? `${iso.slice(0,10)} ${iso.slice(11,16)
    Function이 공유 HR 프로젝트의 hr_verify로 검증한 뒤 clobe 세션을 발급한다.
    (HR 데이터는 조회만, clobe는 자체 비밀번호를 저장하지 않음) */
 async function getSession(){ const { data } = await supabaseClient.auth.getSession(); return data.session; }
+// 최초 로그인(휴대폰 4자리) 사용자가 비밀번호를 바꿀 때 "현재 비밀번호"로 재사용하기 위해
+// 방금 로그인에 쓴 값을 잠깐 보관 (성공 후 변경이 끝나면 지움).
+let LAST_LOGIN = { name: "", password: "", mustChange: false };
 async function signIn(name, password){
   let res;
   try {
@@ -42,7 +45,8 @@ async function signIn(name, password){
   const { error } = await supabaseClient.auth.setSession({
     access_token: body.access_token, refresh_token: body.refresh_token,
   });
-  return { error };
+  if (!error) LAST_LOGIN = { name: name.trim(), password, mustChange: !!body.must_change };
+  return { error, mustChange: !!body.must_change };
 }
 async function signOut(){ return await supabaseClient.auth.signOut(); }
 // 비밀번호 변경 → 공유 HR 프로젝트의 hr_set_password 호출(원본 한 곳 변경 → 4개 앱 공통 반영)

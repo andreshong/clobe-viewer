@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
   //    on failure. (hr_verify only checks the original phone PIN, so it wrongly
   //    rejects anyone who has since changed their password -- that was the bug.)
   let verified = false;
+  let mustChange = false;
   try {
     const res = await fetch(`${HR_URL}/rest/v1/rpc/hr_login`, {
       method: "POST",
@@ -79,6 +80,9 @@ Deno.serve(async (req) => {
       const val = await res.json().catch(() => null);
       // Success = 200 without an error verdict in the returned jsonb.
       verified = !(val && typeof val === "object" && (val.ok === false || val.error));
+      // must_change=true means the user is still on the initial phone-4-digit
+      // PIN and must set a real password (same flag the HR eval app uses).
+      mustChange = !!(val && typeof val === "object" && val.must_change);
     }
   } catch (_e) {
     return json({ error: "hr_unreachable" }, 502);
@@ -105,6 +109,7 @@ Deno.serve(async (req) => {
   return json({
     ok: true,
     name,
+    must_change: mustChange,
     access_token: sess.session.access_token,
     refresh_token: sess.session.refresh_token,
   });
