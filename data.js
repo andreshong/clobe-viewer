@@ -19,9 +19,19 @@ const fmtDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0"
 // Date 객체로 변환하지 않고 문자열을 그대로 잘라 표시 (로컬 타임존 변환 방지).
 const isoToDisplayDateTime = iso => iso ? `${iso.slice(0,10)} ${iso.slice(11,16)}` : "";
 
-/* ---------- 인증 (이메일+비밀번호 — 계정은 관리자가 미리 생성) ---------- */
+/* ---------- 인증 (이름+비밀번호 — Supabase Auth는 이메일 기반이라 내부적으로
+   이름을 고정된 가상 이메일로 매핑. 계정은 관리자가 미리 생성) ---------- */
+const NAME_LOGIN_MAP = {
+  "조윤성": "user1@clobe.local",
+  "조경철": "user2@clobe.local",
+  "김종순": "user3@clobe.local",
+  "홍찬수": "user4@clobe.local",
+  "서민규": "user5@clobe.local",
+};
 async function getSession(){ const { data } = await supabaseClient.auth.getSession(); return data.session; }
-async function signIn(email, password){
+async function signIn(name, password){
+  const email = NAME_LOGIN_MAP[name.trim()];
+  if (!email) return { error: { message: "등록되지 않은 이름입니다." } };
   return await supabaseClient.auth.signInWithPassword({ email, password });
 }
 async function signOut(){ return await supabaseClient.auth.signOut(); }
