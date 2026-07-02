@@ -138,6 +138,21 @@
   .modal-close:hover { background: var(--accent-soft); }
   .modal-body { padding: 18px 22px; }
   .modal-body h4 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); }
+  .recon-grid { display: grid; grid-template-columns: 1fr 1fr 200px; gap: 14px; align-items: start; }
+  @media (max-width: 760px){ .recon-grid { grid-template-columns: 1fr; } }
+  .recon-col h4 { display: flex; justify-content: space-between; align-items: baseline; }
+  .recon-col .coltot { font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .recon-item { border: 1px solid var(--gridline); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; }
+  .recon-item.hit { border-color: var(--series-1); background: var(--accent-soft); }
+  .recon-item .amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .recon-item .meta { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+  .recon-verdict { border-radius: 10px; padding: 14px; text-align: center; }
+  .recon-verdict.ok { background: rgba(27,175,122,0.12); }
+  .recon-verdict.split { background: rgba(250,178,25,0.14); }
+  .recon-verdict.bad { background: rgba(208,59,59,0.12); }
+  .recon-verdict .big { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .recon-verdict.ok .big { color: var(--good); } .recon-verdict.split .big { color: #8a6100; } .recon-verdict.bad .big { color: var(--critical); }
+  .recon-verdict .row { display: flex; justify-content: space-between; font-size: 12px; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
   /* login */
   .login-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--page); }
@@ -649,8 +664,9 @@ async function cards(){
         <div class="tile"><div class="label">기간 내 이용 총액</div><div class="value">${compact(total)}</div><div class="delta flat">${list.length}건</div></div>
         <div class="tile"><div class="label">이용 카드 수</div><div class="value">${cardsList.length}<span class="unit">개</span></div><div class="delta flat">사용자 매칭 ${cardsList.filter(c=>holderOf(c)).length}개 · 환경설정</div></div>
         <div class="tile"><div class="label">미분류</div><div class="value">${list.filter(c=>!c.cat).length}<span class="unit">건</span></div></div></div>`;
+      const usageHint = all.length===0 ? `<div class="foot-note" style="color:var(--warning)">ℹ️ 이 기간에 카드 이용내역이 없습니다. 카드 이용내역은 카드사 <b>청구 확정 후</b> 수집되어 최신 승인분(대략 최근 한 달)은 아직 없을 수 있습니다. 기간을 <b>'전체'</b> 또는 최근 90일로 넓혀보세요.</div>` : "";
       body = `<div class="panel"><h2>카드 이용내역 (승인)</h2><p class="desc">사용자(카드)를 선택해 필터 · 카드 클릭 시 상세 모달 · 사용자 매칭은 환경설정에서</p>${rangeNote()}${capNote(all)}
-        <div class="filters">${chips}</div>${cardUsageTableHTML(list)}</div>`;
+        <div class="filters">${chips}</div>${cardUsageTableHTML(list)}${usageHint}</div>`;
     } else {
       const list = await fetchCardBilling(dateRange);
       const total = sumBy(list, c=>c.amount);
@@ -672,79 +688,72 @@ async function cards(){
 }
 
 let taxFilter="ALL";
-/* ---------- 대사(reconciliation) 매칭 ---------- */
+/* ---------- 대사(reconciliation) ---------- */
+// 거래처명 정규화: (주)·주식회사·㈜·공백 제거 후 소문자화 (은행 표기와 세금계산서 표기 차이 흡수)
 const normName = s => (s||"").replace(/\(주\)|주식회사|㈜|\s+/g,"").toLowerCase();
-function matchInvoicesForTx(tx, invoices){
-  const amt = tx.in || tx.out;
-  const dir = tx.in ? "SALES" : "PURCHASE"; // 입금→매출계산서, 출금→매입계산서
-  const txName = normName(tx.name);
-  const txDate = tx.date.slice(0,10);
-  return invoices.filter(inv=>inv.type===dir).map(inv=>{
-    const amtOk = Math.abs((inv.supply+inv.vat) - amt) < 1;
-    const invName = normName(inv.partner);
-    const nameOk = !!(txName && invName && (txName.includes(invName) || invName.includes(txName)));
-    const days = Math.abs((new Date(txDate) - new Date(inv.date))/86400000);
-    return { inv, amtOk, nameOk, days };
-  }).filter(m=>m.amtOk).sort((a,b)=> (b.nameOk-a.nameOk) || (a.days-b.days));
-}
-function matchTxForInvoice(inv, txs){
-  const dir = inv.type; // SALES→입금, PURCHASE→출금
-  const invName = normName(inv.partner);
-  return txs.filter(t=> dir==="SALES" ? t.in : t.out).map(t=>{
-    const amt = t.in || t.out;
-    const amtOk = Math.abs(amt - (inv.supply+inv.vat)) < 1;
-    const txName = normName(t.name);
-    const nameOk = !!(txName && invName && (txName.includes(invName) || invName.includes(txName)));
-    const days = Math.abs((new Date(t.date.slice(0,10)) - new Date(inv.date))/86400000);
-    return { t, amtOk, nameOk, days };
-  }).filter(m=>m.amtOk).sort((a,b)=> (b.nameOk-a.nameOk) || (a.days-b.days));
-}
-const reconVerdict = matches => {
-  if (!matches.length) return `<span class="pill" style="background:rgba(208,59,59,0.15);color:var(--critical)">✗ 매칭 없음</span>`;
-  return matches[0].nameOk
-    ? `<span class="pill" style="background:rgba(27,175,122,0.18);color:var(--good)">✓ 거래처·금액 일치</span>`
-    : `<span class="pill unclassified">금액 일치 · 거래처명 확인 필요</span>`;
-};
-// 클릭한 항목과 매칭되는 반대편(세금계산서↔입출금)을 모달로 비교 표시.
-function openReconModal(kind, item, matches){
-  let title, sub, srcHtml, matchTitle, verdictLine;
-  if (kind==="tx"){
-    const amt = item.in || item.out, dir = item.in ? "입금(매출)" : "출금(매입)";
-    title = `${item.name || "(무명)"} · ${item.in?KRW(item.in):"−"+KRW(item.out)}`;
-    sub = `은행 ${dir} · ${item.date}`;
-    srcHtml = `<h4>클릭한 입출금</h4>${miniTable([
-      ["거래처", item.name||"—"], ["적요", item.desc||"—"], ["일시", item.date],
-      ["구분", dir], ["금액", KRW(amt)]
-    ])}`;
-    matchTitle = item.in ? "매칭되는 매출 세금계산서" : "매칭되는 매입 세금계산서";
-    verdictLine = item.in
-      ? "이 입금이 발행한 매출 세금계산서와 금액·거래처가 맞는지(정상 수금) 확인합니다."
-      : "이 출금이 수취한 매입 세금계산서와 금액·거래처가 맞는지(정상 지급) 확인합니다.";
-  } else {
-    const total = item.supply + item.vat, t = item.type==="SALES" ? "매출(발행)" : "매입(수취)";
-    title = `${item.partner} · ${KRW(total)}`;
-    sub = `세금계산서 ${t} · ${item.date}`;
-    srcHtml = `<h4>클릭한 세금계산서</h4>${miniTable([
-      ["거래처", item.partner], ["사업자번호", item.regNo||"—"], ["작성일", item.date],
-      ["구분", t], ["공급가액", KRW(item.supply)], ["부가세", KRW(item.vat)], ["합계", KRW(total)]
-    ])}`;
-    matchTitle = item.type==="SALES" ? "매칭되는 입금 내역" : "매칭되는 출금 내역";
-    verdictLine = item.type==="SALES"
-      ? "이 매출 세금계산서 금액이 실제로 입금되었는지(미수금 여부) 확인합니다."
-      : "이 매입 세금계산서 금액이 실제로 지급되었는지(미지급금 여부) 확인합니다.";
+// 클릭한 항목을 기준으로 같은 거래처(이름)의 입출금·세금계산서를 모아
+// 좌(입출금)·중(세금계산서)·우(일치/불일치) 3열로 대사한다. 이름이 안 맞으면
+// 금액 기준으로 후보를 찾고, 양쪽 합계를 비교해 분할·병합 결제도 판정한다.
+const invAmt = i => i.supply + i.vat;
+const txAmt  = t => t.in || t.out;
+function openReconModal(kind, item, allInv, allTx){
+  const focus = normName(kind==="inv" ? item.partner : item.name);
+  const clickedAmt = kind==="inv" ? invAmt(item) : txAmt(item);
+  const dir = kind==="inv" ? item.type : (item.in ? "SALES" : "PURCHASE"); // 매출↔입금, 매입↔출금
+  const wantIn = dir==="SALES";
+
+  // 1순위: 같은 거래처명. 없으면 금액 기준 후보.
+  let invs = focus ? allInv.filter(i=> i.type===dir && normName(i.partner)===focus) : [];
+  let txs  = focus ? allTx.filter(t=> (wantIn?t.in:t.out) && normName(t.name)===focus) : [];
+  const byName = !!(invs.length || txs.length);
+  if (!byName){
+    invs = allInv.filter(i=> i.type===dir && Math.abs(invAmt(i)-clickedAmt)<1);
+    txs  = allTx.filter(t=> (wantIn?t.in:t.out) && Math.abs(txAmt(t)-clickedAmt)<1);
   }
-  const matchRows = matches.slice(0,10).map(m => kind==="tx"
-    ? [`${m.inv.partner} <span style="color:var(--text-muted)">${m.inv.date}${m.nameOk?' · 거래처✓':''}</span>`, KRW(m.inv.supply+m.inv.vat)]
-    : [`${m.t.name} <span style="color:var(--text-muted)">${m.t.date}${m.nameOk?' · 거래처✓':''}</span>`, KRW(m.t.in||m.t.out)]);
-  const matchHtml = matches.length
-    ? miniTable(matchRows)
-    : `<div class="foot-note" style="color:var(--critical)">⚠ 금액이 일치하는 항목을 현재 조회 기간 안에서 찾지 못했습니다. 기간을 넓혀보세요.</div>`;
+  if (kind==="inv" && !invs.includes(item)) invs = [item, ...invs];
+  if (kind==="tx"  && !txs.includes(item))  txs  = [item, ...txs];
+
+  const invSum = invs.reduce((s,i)=>s+invAmt(i),0);
+  const txSum  = txs.reduce((s,t)=>s+txAmt(t),0);
+  const diff = invSum - txSum;
+
+  let cls, big, note;
+  if (!invs.length || !txs.length){ cls="bad"; big="✗ 불일치"; note = !invs.length ? "매칭되는 세금계산서 없음" : "매칭되는 입출금 없음"; }
+  else if (Math.abs(diff) < 1){
+    const oneToOne = invs.length===1 && txs.length===1;
+    cls="ok"; big = oneToOne ? "✓ 일치" : "✓ 일치 (분할/병합)";
+    note = oneToOne ? "금액 일치" : `세금계산서 ${invs.length}건 · 입출금 ${txs.length}건 합계 일치`;
+  } else { cls="bad"; big="✗ 금액 불일치"; note = `차액 ${KRW(Math.abs(diff))}`; }
+
+  const CAP = 15;
+  const col = (rows, render) => {
+    if (!rows.length) return `<div class="recon-item" style="color:var(--text-muted)">해당 없음</div>`;
+    let h = rows.slice(0,CAP).map(render).join("");
+    if (rows.length > CAP) h += `<div class="recon-item" style="color:var(--text-muted)">외 ${rows.length-CAP}건</div>`;
+    return h;
+  };
+  const txCol = col(txs, t=>`<div class="recon-item ${t===item?'hit':''}"><div class="amt ${t.in?'in':'out'}">${t.in?'+':'−'}${KRW(txAmt(t))}</div><div class="meta">${t.name||'—'} · ${t.date}</div></div>`);
+  const invCol = col(invs, i=>`<div class="recon-item ${i===item?'hit':''}"><div class="amt">${KRW(invAmt(i))}</div><div class="meta">${i.partner} · ${i.date} · ${i.type==='SALES'?'매출':'매입'}</div></div>`);
+
+  const title = kind==="inv" ? `${item.partner} · ${KRW(clickedAmt)}`
+                             : `${item.name||'(무명)'} · ${item.in?'+':'−'}${KRW(clickedAmt)}`;
+  const sub = dir==="SALES" ? "매출 세금계산서 ↔ 입금 대사 (수금 확인)" : "매입 세금계산서 ↔ 출금 대사 (지급 확인)";
+  const basisNote = byName ? "같은 <b>거래처명</b>으로 모았습니다." : "거래처명이 일치하는 항목이 없어 <b>금액 기준</b>으로 후보를 찾았습니다.";
+
   modalEl.innerHTML = `<div class="modal"><div class="modal-head"><div><h3>${title}</h3><div class="sub">${sub}</div></div><button class="modal-close" id="modal-x">✕</button></div>
     <div class="modal-body">
-      <div style="margin-bottom:12px">${reconVerdict(matches)}</div>
-      <p class="desc">${verdictLine}</p>
-      ${srcHtml}
-      <h4 style="margin-top:18px">${matchTitle} (${matches.length}건)</h4>${matchHtml}
+      <p class="desc">${basisNote} 금액이 분할·병합된 경우 양쪽 <b>합계</b>를 비교합니다.</p>
+      <div class="recon-grid">
+        <div class="recon-col"><h4>입출금 <span class="coltot">${KRW(txSum)}</span></h4>${txCol}</div>
+        <div class="recon-col"><h4>세금계산서 <span class="coltot">${KRW(invSum)}</span></h4>${invCol}</div>
+        <div class="recon-verdict ${cls}">
+          <div class="big">${big}</div>
+          <div class="row"><span>세금계산서</span><b>${KRW(invSum)}</b></div>
+          <div class="row"><span>입출금</span><b>${KRW(txSum)}</b></div>
+          <div class="row" style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px"><span>차액</span><b>${KRW(Math.abs(diff))}</b></div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:8px">${note}</div>
+        </div>
+      </div>
     </div></div>`;
   modalEl.classList.add("open");
   modalEl.onclick = e => { if (e.target===modalEl) closeModal(); };
@@ -785,8 +794,8 @@ async function tax(){
     document.querySelectorAll("[data-txf2]").forEach(c=>c.onclick=async ()=>{taxFilter=c.dataset.txf2; await tax();});
     document.querySelectorAll("[data-recon]").forEach(row=>row.onclick=()=>{
       const [kind, idxStr] = row.dataset.recon.split("|"), idx=+idxStr;
-      if (kind==="tx") openReconModal("tx", bankTx[idx], matchInvoicesForTx(bankTx[idx], base));
-      else openReconModal("inv", list[idx], matchTxForInvoice(list[idx], bankTx));
+      if (kind==="tx") openReconModal("tx", bankTx[idx], base, bankTx);
+      else openReconModal("inv", list[idx], base, bankTx);
     });
   } catch (err) {
     el.innerHTML = errorHTML(err);
