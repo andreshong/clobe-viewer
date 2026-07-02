@@ -200,6 +200,7 @@
         <div id="daterange" class="daterange"></div>
         <span class="stale"><span class="dot"></span> 동기화 상태 확인 중…</span>
         <select id="company-select"><option value="jnh">주식회사 제이앤에이취프레스</option></select>
+        <button id="pw-btn" class="select-sm">비밀번호 변경</button>
         <button id="logout-btn" class="select-sm">로그아웃</button>
       </div>
     </div>
@@ -998,6 +999,34 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
   }
 });
 document.getElementById("logout-btn").onclick = () => signOut();
+document.getElementById("pw-btn").onclick = () => {
+  const session = supabaseClient.auth.getSession().then(({data})=>{
+    const name = data.session?.user?.user_metadata?.clobe_name || "";
+    modalEl.innerHTML = `<div class="modal" style="max-width:360px"><div class="modal-head"><div><h3>비밀번호 변경</h3><div class="sub">${name} · 변경 시 제안활동·인사평가·의견수렴에도 동일 적용됩니다</div></div><button class="modal-close" id="modal-x">✕</button></div>
+      <div class="modal-body">
+        <input type="password" id="pw-cur" placeholder="현재 비밀번호(최초: 휴대폰 4자리)" autocomplete="current-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">
+        <input type="password" id="pw-new" placeholder="새 비밀번호(4자 이상)" autocomplete="new-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">
+        <input type="password" id="pw-new2" placeholder="새 비밀번호 확인" autocomplete="new-password" style="width:100%;font-family:inherit;font-size:13.5px;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--text-primary);margin-bottom:10px">
+        <button id="pw-submit" style="width:100%;border:none;background:var(--series-1);color:#fff;border-radius:9px;padding:11px;font-family:inherit;font-size:13.5px;cursor:pointer">변경</button>
+        <p class="err" id="pw-err" style="display:none;font-size:12.5px;margin-top:10px"></p>
+      </div></div>`;
+    modalEl.classList.add("open");
+    document.getElementById("modal-x").onclick = closeModal;
+    document.getElementById("pw-submit").onclick = async () => {
+      const cur = document.getElementById("pw-cur").value;
+      const n1 = document.getElementById("pw-new").value;
+      const n2 = document.getElementById("pw-new2").value;
+      const errEl = document.getElementById("pw-err");
+      const show = (msg, ok) => { errEl.textContent = msg; errEl.style.color = ok?"var(--good)":"var(--critical)"; errEl.style.display = "block"; };
+      if (n1 !== n2) return show("새 비밀번호가 일치하지 않습니다.", false);
+      const btn = document.getElementById("pw-submit"); btn.disabled = true;
+      const { ok, error } = await changePassword(name, cur, n1);
+      btn.disabled = false;
+      if (ok) { show("변경되었습니다. 4개 앱 모두 새 비밀번호로 로그인하세요.", true); setTimeout(closeModal, 1800); }
+      else show(error, false);
+    };
+  });
+};
 </script>
 </body>
 </html>

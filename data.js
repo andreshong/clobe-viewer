@@ -45,6 +45,24 @@ async function signIn(name, password){
   return { error };
 }
 async function signOut(){ return await supabaseClient.auth.signOut(); }
+// 비밀번호 변경 → 공유 HR 프로젝트의 hr_set_password 호출(원본 한 곳 변경 → 4개 앱 공통 반영)
+async function changePassword(name, current, next){
+  let res;
+  try {
+    res = await fetch(`${SUPABASE_URL}/functions/v1/clobe-hr-change-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY },
+      body: JSON.stringify({ name, current, next }),
+    });
+  } catch (e) {
+    return { error: "네트워크 오류" };
+  }
+  const body = await res.json().catch(()=>({}));
+  if (!res.ok || body.ok !== true) {
+    return { error: body.error === "weak_password" ? "새 비밀번호는 4자 이상이어야 합니다." : "변경 실패: 현재 비밀번호를 확인하세요." };
+  }
+  return { ok: true };
+}
 
 /* ---------- 설정 캐시 (카드사용자/계좌별명/거래처속성) ----------
    기존 localStorage 3종을 Supabase 테이블로 이관. 앱 시작 시 1회 전체
