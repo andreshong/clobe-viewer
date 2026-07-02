@@ -36,10 +36,13 @@ Deno.serve(async () => {
     global: { headers: { Authorization: `Bearer ${verifyData.session.access_token}` } },
   });
 
-  const [cardUsage, txCount, bankAccounts] = await Promise.all([
+  const [cardUsage, txCount, bankAccounts, cardUsageFiltered, distinctCards] = await Promise.all([
     authedClient.from("card_usage_view").select("*").limit(3),
     authedClient.from("transactions").select("*", { count: "exact", head: true }),
     authedClient.from("bank_accounts").select("*").limit(2),
+    authedClient.from("card_usage_view").select("*").gte("used_date", "2026-04-03").lte("used_date", "2026-07-02")
+      .order("used_date", { ascending: false }).limit(2000),
+    authedClient.from("distinct_cards").select("*"),
   ]);
 
   return new Response(JSON.stringify({
@@ -49,5 +52,10 @@ Deno.serve(async () => {
     transactions_count: txCount.count ?? 0,
     bank_accounts_rows: bankAccounts.data?.length ?? 0,
     bank_accounts_sample: bankAccounts.data,
+    card_usage_filtered_rows: cardUsageFiltered.data?.length ?? 0,
+    card_usage_filtered_error: cardUsageFiltered.error ?? null,
+    distinct_cards_rows: distinctCards.data?.length ?? 0,
+    distinct_cards_error: distinctCards.error ?? null,
+    distinct_cards_sample: distinctCards.data?.slice(0, 5),
   }, null, 2), { headers: { "Content-Type": "application/json" } });
 });

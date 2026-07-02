@@ -19,10 +19,10 @@ const fmtDate = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0"
 // Date 객체로 변환하지 않고 문자열을 그대로 잘라 표시 (로컬 타임존 변환 방지).
 const isoToDisplayDateTime = iso => iso ? `${iso.slice(0,10)} ${iso.slice(11,16)}` : "";
 
-/* ---------- 인증 (비밀번호 없는 매직링크 로그인 — 계정은 관리자가 미리 생성) ---------- */
+/* ---------- 인증 (이메일+비밀번호 — 계정은 관리자가 미리 생성) ---------- */
 async function getSession(){ const { data } = await supabaseClient.auth.getSession(); return data.session; }
-async function sendMagicLink(email){
-  return await supabaseClient.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + window.location.pathname } });
+async function signIn(email, password){
+  return await supabaseClient.auth.signInWithPassword({ email, password });
 }
 async function signOut(){ return await supabaseClient.auth.signOut(); }
 

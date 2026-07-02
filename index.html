@@ -177,9 +177,10 @@
 <div id="login-screen" class="login-screen" style="display:none">
   <form class="login-box" id="login-form">
     <h1>Clobe 조회창</h1>
-    <p class="sub">등록된 회사 이메일로 로그인 링크를 보내드립니다</p>
+    <p class="sub">회사 계정으로 로그인하세요</p>
     <input type="email" id="login-email" placeholder="이메일" autocomplete="username" required>
-    <button type="submit">로그인 링크 받기</button>
+    <input type="password" id="login-password" placeholder="비밀번호" autocomplete="current-password" required>
+    <button type="submit">로그인</button>
     <p class="err" id="login-err"></p>
   </form>
 </div>
@@ -875,19 +876,17 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
 document.getElementById("login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
   const errEl = document.getElementById("login-err");
   const btn = e.target.querySelector("button[type=submit]");
   errEl.style.display = "none"; btn.disabled = true;
-  const { error } = await sendMagicLink(email);
+  const { error } = await signIn(email, password);
   btn.disabled = false;
   if (error) {
     errEl.style.color = "var(--critical)";
-    errEl.textContent = "전송 실패: 등록된 이메일인지 확인하세요.";
-  } else {
-    errEl.style.color = "var(--good)";
-    errEl.textContent = "로그인 링크를 이메일로 보냈습니다. 메일함을 확인하세요.";
+    errEl.textContent = "로그인 실패: 이메일 또는 비밀번호를 확인하세요.";
+    errEl.style.display = "block";
   }
-  errEl.style.display = "block";
 });
 document.getElementById("logout-btn").onclick = () => signOut();
 </script>
